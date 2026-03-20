@@ -23,108 +23,42 @@
       width: 100%;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     }
-    h1 {
-      font-size: 24px;
-      margin-bottom: 8px;
-    }
-    .subtitle {
-      color: #666;
-      font-size: 14px;
-      margin-bottom: 32px;
-    }
-    .tabs {
-      display: flex;
-      gap: 0;
-      margin-bottom: 24px;
-      border-bottom: 2px solid #f0f0f0;
-    }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+    .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 2px solid #f0f0f0; }
     .tab {
-      padding: 12px 20px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-      color: #999;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -2px;
-      transition: all 0.2s;
+      padding: 12px 20px; cursor: pointer; font-weight: 600; font-size: 14px;
+      color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s;
     }
-    .tab.active {
-      color: #e8530e;
-      border-bottom-color: #e8530e;
-    }
+    .tab.active { color: #e8530e; border-bottom-color: #e8530e; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-    .field {
-      margin-bottom: 16px;
-    }
-    label {
-      display: block;
-      font-weight: 500;
-      font-size: 13px;
-      margin-bottom: 6px;
-      color: #555;
-    }
-    input, select {
-      width: 100%;
-      padding: 10px 14px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 14px;
-      transition: border-color 0.2s;
-    }
-    input:focus, select:focus {
-      outline: none;
-      border-color: #e8530e;
-    }
-    .row {
-      display: flex;
-      gap: 12px;
-    }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-weight: 500; font-size: 13px; margin-bottom: 6px; color: #555; }
+    input, select { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    input:focus, select:focus { outline: none; border-color: #e8530e; }
+    .row { display: flex; gap: 12px; }
     .row .field { flex: 1; }
     button.pay-btn {
-      width: 100%;
-      padding: 14px;
-      background: #e8530e;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 8px;
-      transition: background 0.2s;
+      width: 100%; padding: 14px; background: #e8530e; color: #fff; border: none;
+      border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px;
     }
     button.pay-btn:hover { background: #d14a0c; }
-    .theme-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 16px;
-      font-size: 13px;
-      color: #666;
-    }
+    button.pay-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .theme-toggle { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; color: #666; }
     #log {
-      margin-top: 24px;
-      padding: 16px;
-      background: #f8f8f8;
-      border-radius: 8px;
-      font-size: 12px;
-      font-family: 'SF Mono', Menlo, monospace;
-      max-height: 200px;
-      overflow-y: auto;
-      display: none;
+      margin-top: 24px; padding: 16px; background: #f8f8f8; border-radius: 8px;
+      font-size: 12px; font-family: 'SF Mono', Menlo, monospace; max-height: 200px;
+      overflow-y: auto; display: none;
     }
     #log.visible { display: block; }
-    .log-entry {
-      padding: 4px 0;
-      border-bottom: 1px solid #eee;
-    }
+    .log-entry { padding: 4px 0; border-bottom: 1px solid #eee; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>CinetPay Seamless</h1>
-    <p class="subtitle">Demo d'intégration — paiement inline sans redirection</p>
+    <p class="subtitle">Demo — paiement inline sans redirection</p>
 
     <div class="tabs">
       <div class="tab active" data-tab="direct">Mode Direct</div>
@@ -139,8 +73,8 @@
           <input type="text" id="apiKey" placeholder="sk_test_..." value="sk_test_JH2kpCc8xnCcvnCvPRpczFNe">
         </div>
         <div class="field">
-          <label>Site ID</label>
-          <input type="number" id="siteId" placeholder="123456" value="105898">
+          <label>API Password</label>
+          <input type="password" id="apiPassword" placeholder="password" value="developer">
         </div>
       </div>
       <div class="row">
@@ -155,27 +89,30 @@
             <option value="XAF">XAF</option>
             <option value="GNF">GNF</option>
             <option value="CDF">CDF</option>
-            <option value="USD">USD</option>
           </select>
         </div>
       </div>
       <div class="field">
         <label>Description</label>
-        <input type="text" id="description" value="Test Seamless SDK">
+        <input type="text" id="designation" value="Test Seamless SDK">
       </div>
       <div class="row">
         <div class="field">
-          <label>Nom</label>
-          <input type="text" id="customerName" value="Jean Dupont">
+          <label>Prénom</label>
+          <input type="text" id="firstName" value="Jean">
         </div>
         <div class="field">
-          <label>Email</label>
-          <input type="email" id="customerEmail" value="jean@test.com">
+          <label>Nom</label>
+          <input type="text" id="lastName" value="Dupont">
         </div>
       </div>
       <div class="field">
+        <label>Email</label>
+        <input type="email" id="email" value="jean@test.com">
+      </div>
+      <div class="field">
         <label>Téléphone</label>
-        <input type="tel" id="customerPhone" value="+2250707070700">
+        <input type="tel" id="phone" value="+2250707070700">
       </div>
       <button class="pay-btn" id="btn-direct">Payer maintenant</button>
     </div>
@@ -184,7 +121,7 @@
     <div class="tab-content" id="tab-backend">
       <div class="field">
         <label>Payment Token</label>
-        <input type="text" id="paymentToken" placeholder="Token obtenu via le SDK backend (cinetpay-js)">
+        <input type="text" id="paymentToken" placeholder="Token obtenu via cinetpay-js">
       </div>
       <button class="pay-btn" id="btn-backend">Ouvrir le paiement</button>
     </div>
@@ -192,6 +129,8 @@
     <div class="theme-toggle">
       <input type="checkbox" id="darkMode">
       <label for="darkMode" style="margin: 0">Mode sombre</label>
+      <input type="checkbox" id="debugMode" checked>
+      <label for="debugMode" style="margin: 0">Debug logs</label>
     </div>
 
     <div id="log"></div>
@@ -220,58 +159,52 @@
     }
 
     const getTheme = () => document.getElementById('darkMode').checked ? 'dark' : 'light'
+    const getDebug = () => document.getElementById('debugMode').checked
+
+    // Event listeners style Stripe
+    CinetPaySeamless.on('ready', () => log('EVENT: ready'))
+    CinetPaySeamless.on('payment.success', (data) => log('EVENT: payment.success — ' + data.amount + ' ' + data.currency))
+    CinetPaySeamless.on('payment.failed', (data) => log('EVENT: payment.failed — ' + data.transactionId))
+    CinetPaySeamless.on('payment.pending', (data) => log('EVENT: payment.pending — ' + data.status))
+    CinetPaySeamless.on('close', (data) => log('EVENT: close — status: ' + data.status))
+    CinetPaySeamless.on('error', (err) => log('EVENT: error — ' + err.code + ': ' + err.message))
 
     // Mode Direct
     document.getElementById('btn-direct').addEventListener('click', () => {
       const txId = 'SEAMLESS-' + Date.now()
-      log('Initializing payment ' + txId + '...')
+      log('Opening payment ' + txId)
 
       CinetPaySeamless.open({
         apiKey: document.getElementById('apiKey').value,
-        siteId: parseInt(document.getElementById('siteId').value),
-        transactionId: txId,
+        apiPassword: document.getElementById('apiPassword').value,
+        country: 'CI',
+        merchantTransactionId: txId,
         amount: parseInt(document.getElementById('amount').value),
         currency: document.getElementById('currency').value,
-        description: document.getElementById('description').value,
+        designation: document.getElementById('designation').value,
+        clientFirstName: document.getElementById('firstName').value,
+        clientLastName: document.getElementById('lastName').value,
+        clientEmail: document.getElementById('email').value,
+        clientPhoneNumber: document.getElementById('phone').value,
         notifyUrl: 'https://example.com/webhook',
-        customerName: document.getElementById('customerName').value,
-        customerEmail: document.getElementById('customerEmail').value,
-        customerPhoneNumber: document.getElementById('customerPhone').value,
-        channels: 'ALL',
+        successUrl: 'https://example.com/success',
+        failedUrl: 'https://example.com/failed',
+        channel: 'PUSH',
         theme: getTheme(),
-        onResponse: (data) => {
-          log('Response: ' + data.status + ' — ' + data.amount + ' ' + data.currency)
-        },
-        onClose: (data) => {
-          log('Modal closed — status: ' + data.status)
-        },
-        onError: (err) => {
-          log('Error: ' + err.code + ' — ' + err.message)
-        },
+        debug: getDebug(),
       })
     })
 
     // Mode Backend
     document.getElementById('btn-backend').addEventListener('click', () => {
       const token = document.getElementById('paymentToken').value
-      if (!token) {
-        log('Error: paymentToken is required')
-        return
-      }
-      log('Opening payment with token...')
+      if (!token) { log('Error: paymentToken required'); return }
+      log('Opening with token...')
 
       CinetPaySeamless.open({
         paymentToken: token,
         theme: getTheme(),
-        onResponse: (data) => {
-          log('Response: ' + data.status + ' — ' + data.amount + ' ' + data.currency)
-        },
-        onClose: (data) => {
-          log('Modal closed — status: ' + data.status)
-        },
-        onError: (err) => {
-          log('Error: ' + err.code + ' — ' + err.message)
-        },
+        debug: getDebug(),
       })
     })
   </script>

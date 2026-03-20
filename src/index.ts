@@ -48,7 +48,8 @@ const REQUEST_TIMEOUT = 30_000
  * ```typescript
  * CinetPaySeamless.open({
  *   paymentToken: 'token-du-backend',
- *   onResponse: (data) => console.log(data.status),
+ *   onPaymentSuccess: (data) => console.log('Payé !', data.amount),
+ *   onPaymentFailed: (data) => console.log('Refusé'),
  * })
  * ```
  *
@@ -165,9 +166,8 @@ export const CinetPaySeamless = {
    * CinetPaySeamless.open({
    *   paymentToken: 'abc123def456...',
    *   theme: 'dark',
-   *   onResponse: (data) => {
-   *     if (data.status === 'ACCEPTED') console.log('Payé !')
-   *   },
+   *   onPaymentSuccess: (data) => console.log('Payé !', data.amount),
+   *   onPaymentFailed: (data) => console.log('Refusé'),
    *   onClose: ({ status }) => console.log('Fermé:', status),
    * })
    * ```
@@ -188,7 +188,8 @@ export const CinetPaySeamless = {
    *   notifyUrl: 'https://monsite.com/webhook',
    *   successUrl: 'https://monsite.com/success',
    *   failedUrl: 'https://monsite.com/failed',
-   *   onResponse: (data) => console.log(data),
+   *   onPaymentSuccess: (data) => console.log('Payé !', data),
+   *   onPaymentFailed: (data) => console.log('Refusé', data),
    *   onError: (err) => console.error(err),
    * })
    * ```

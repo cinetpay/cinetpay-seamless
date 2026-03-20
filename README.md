@@ -27,21 +27,18 @@ Le serveur initialise le paiement via le SDK `cinetpay-js` et passe le `paymentT
 ```typescript
 import { CinetPaySeamless } from 'cinetpay-seamless'
 
-// Le backend retourne un paymentToken après avoir initialisé le paiement
 const { paymentToken } = await fetch('/api/pay', {
   method: 'POST',
   body: JSON.stringify({ amount: 5000, orderId: 'ORDER-001' }),
 }).then(r => r.json())
 
-// Ouvrir le modal de paiement
 CinetPaySeamless.open({
   paymentToken,
-  onResponse: (data) => {
-    if (data.status === 'ACCEPTED') {
-      console.log('Paiement réussi !', data)
-    } else {
-      console.log('Paiement refusé', data)
-    }
+  onPaymentSuccess: (data) => {
+    console.log('Paiement réussi !', data.amount, data.currency)
+  },
+  onPaymentFailed: (data) => {
+    console.log('Paiement refusé', data.transactionId)
   },
   onClose: ({ status }) => {
     console.log('Modal fermé, statut:', status)
@@ -75,12 +72,9 @@ CinetPaySeamless.open({
   successUrl: 'https://monsite.com/success',
   failedUrl: 'https://monsite.com/failed',
   channel: 'PUSH',
-  onResponse: (data) => {
-    console.log(data.status, data.amount, data.currency)
-  },
-  onError: (err) => {
-    console.error(err.code, err.message)
-  },
+  onPaymentSuccess: (data) => console.log('Payé !', data),
+  onPaymentFailed: (data) => console.log('Refusé', data),
+  onError: (err) => console.error(err.code, err.message),
 })
 ```
 
@@ -104,12 +98,68 @@ CinetPaySeamless.open({
       notifyUrl: 'https://monsite.com/webhook',
       successUrl: 'https://monsite.com/success',
       failedUrl: 'https://monsite.com/failed',
-      onResponse: function(data) {
-        alert(data.status === 'ACCEPTED' ? 'Merci !' : 'Echec')
+      onPaymentSuccess: function(data) {
+        alert('Merci ! ' + data.amount + ' ' + data.currency)
+      },
+      onPaymentFailed: function(data) {
+        alert('Paiement échoué')
       },
     })
   })
 </script>
+```
+
+## Event Listener (style Stripe)
+
+En plus des callbacks dans `open()`, vous pouvez écouter les événements globalement avec `on()` / `off()` / `once()` :
+
+```typescript
+import { CinetPaySeamless } from 'cinetpay-seamless'
+
+// Enregistrer les listeners AVANT d'ouvrir le modal
+CinetPaySeamless.on('ready', () => {
+  console.log('Passerelle de paiement chargée')
+})
+
+CinetPaySeamless.on('payment.success', (data) => {
+  console.log('Paiement accepté !', data.amount, data.currency)
+  // Mettre à jour l'interface, rediriger, etc.
+})
+
+CinetPaySeamless.on('payment.failed', (data) => {
+  console.log('Paiement refusé', data.transactionId)
+})
+
+CinetPaySeamless.on('payment.pending', (data) => {
+  console.log('En attente...', data.status) // PENDING, INITIATED, EXPIRED
+})
+
+CinetPaySeamless.on('close', ({ status }) => {
+  console.log('Modal fermé, dernier statut:', status)
+})
+
+CinetPaySeamless.on('error', (err) => {
+  console.error('Erreur:', err.code, err.message)
+})
+
+// Ouvrir le modal — les listeners sont déjà en place
+CinetPaySeamless.open({ paymentToken: 'abc...' })
+```
+
+### Désabonnement
+
+```typescript
+// on() retourne une fonction de désabonnement
+const unsubscribe = CinetPaySeamless.on('payment.success', handler)
+unsubscribe() // Plus de notifications
+
+// Ou avec off()
+CinetPaySeamless.off('payment.success', handler)
+
+// once() pour un handler unique
+CinetPaySeamless.once('payment.success', (data) => {
+  // Appelé une seule fois
+})
 ```
 
 ## API
@@ -123,17 +173,21 @@ Ouvre le modal de paiement.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `lang` | `'fr' \| 'en'` | `'fr'` | Langue de l'interface |
-| `closeAfterResponse` | `boolean` | `true` | Fermer automatiquement après la réponse |
+| `closeAfterResponse` | `boolean` | `true` | Afficher l'écran de résultat |
 | `theme` | `'light' \| 'dark'` | `'light'` | Thème du modal |
-| `onResponse` | `function` | - | Callback paiement terminé |
-| `onClose` | `function` | - | Callback modal fermé |
-| `onError` | `function` | - | Callback erreur |
+| `debug` | `boolean` | `false` | Active les logs console `[CinetPay Seamless]` |
+| `onReady` | `() => void` | - | Iframe chargée, passerelle visible |
+| `onPaymentSuccess` | `(data) => void` | - | Paiement accepté (ACCEPTED) |
+| `onPaymentFailed` | `(data) => void` | - | Paiement refusé (REFUSED) |
+| `onPaymentPending` | `(data) => void` | - | En attente (PENDING, INITIATED, EXPIRED) |
+| `onClose` | `({ status }) => void` | - | Modal fermé |
+| `onError` | `(error) => void` | - | Erreur technique |
 
 #### Config mode Backend
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `paymentToken` | `string` | Oui | Token obtenu via le SDK backend |
+| `paymentToken` | `string` | Oui | Token obtenu via le SDK backend `cinetpay-js` |
 
 #### Config mode Direct
 
@@ -153,8 +207,29 @@ Ouvre le modal de paiement.
 | `successUrl` | `string` | Oui | URL de redirection après succès |
 | `failedUrl` | `string` | Oui | URL de redirection après échec |
 | `channel` | `string` | Non | `PUSH`, `OTP`, `QRCODE` (défaut: PUSH) |
-| `paymentMethod` | `string` | Non | Opérateur spécifique (ex: OM_CI, WAVE_SN) |
+| `paymentMethod` | `string` | Non | Opérateur (ex: OM_CI, WAVE_SN) |
 | `clientPhoneNumber` | `string` | Non | Téléphone (format international) |
+
+### `CinetPaySeamless.on(event, handler)`
+
+Enregistre un listener d'événement. Retourne une fonction de désabonnement.
+
+| Événement | Donnée | Description |
+|---|---|---|
+| `ready` | — | Iframe chargée |
+| `payment.success` | `PaymentResponse` | Paiement accepté |
+| `payment.failed` | `PaymentResponse` | Paiement refusé |
+| `payment.pending` | `PaymentResponse` | En attente |
+| `close` | `{ status: string }` | Modal fermé |
+| `error` | `PaymentError` | Erreur technique |
+
+### `CinetPaySeamless.off(event, handler)`
+
+Supprime un listener.
+
+### `CinetPaySeamless.once(event, handler)`
+
+Listener appelé une seule fois.
 
 ### `CinetPaySeamless.close()`
 
@@ -166,7 +241,7 @@ Ferme le modal programmatiquement.
 {
   amount: number
   currency: string
-  status: 'ACCEPTED' | 'REFUSED'
+  status: 'ACCEPTED' | 'REFUSED' | 'PENDING' | 'INITIATED' | 'EXPIRED' | 'UNKNOWN'
   paymentMethod: string
   description: string
   transactionId: string
@@ -188,91 +263,40 @@ Ferme le modal programmatiquement.
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Paiement — Mon Site</title>
   <script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
-  <style>
-    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 20px; }
-    h2 { margin-bottom: 20px; }
-    .form-group { margin-bottom: 16px; }
-    label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 14px; }
-    input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
-    .row { display: flex; gap: 12px; }
-    .row .form-group { flex: 1; }
-    .pay-btn { width: 100%; padding: 14px; background: #e8530e; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; }
-    .pay-btn:hover { background: #d14a0c; }
-    .pay-btn:disabled { background: #ccc; cursor: not-allowed; }
-    .status { margin-top: 20px; padding: 16px; border-radius: 8px; display: none; font-size: 14px; }
-    .status.success { display: block; background: #e8f5e9; color: #2e7d32; }
-    .status.error { display: block; background: #fbe9e7; color: #c62828; }
-  </style>
 </head>
 <body>
-  <h2>Finaliser votre commande</h2>
-
   <form id="payment-form">
-    <div class="form-group">
-      <label>Article</label>
-      <input type="text" id="designation" value="T-shirt CinetPay" readonly>
-    </div>
-    <div class="row">
-      <div class="form-group">
-        <label>Montant</label>
-        <input type="number" id="amount" value="5000" min="100">
-      </div>
-      <div class="form-group">
-        <label>Devise</label>
-        <select id="currency">
-          <option value="XOF" selected>XOF</option>
-          <option value="XAF">XAF</option>
-        </select>
-      </div>
-    </div>
-    <div class="row">
-      <div class="form-group">
-        <label>Prénom</label>
-        <input type="text" id="firstName" required placeholder="Jean">
-      </div>
-      <div class="form-group">
-        <label>Nom</label>
-        <input type="text" id="lastName" required placeholder="Dupont">
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Email</label>
-      <input type="email" id="email" required placeholder="jean@email.com">
-    </div>
-    <div class="form-group">
-      <label>Téléphone</label>
-      <input type="tel" id="phone" required placeholder="+2250707000000">
-    </div>
-    <button type="submit" class="pay-btn" id="payBtn">Payer 5 000 XOF</button>
+    <input type="text" id="firstName" required placeholder="Prénom">
+    <input type="text" id="lastName" required placeholder="Nom">
+    <input type="email" id="email" required placeholder="Email">
+    <input type="tel" id="phone" required placeholder="+2250707000000">
+    <input type="number" id="amount" value="5000" min="100">
+    <button type="submit">Payer</button>
   </form>
 
-  <div class="status" id="status"></div>
+  <div id="status"></div>
 
   <script>
-    // Mettre à jour le bouton quand le montant change
-    document.getElementById('amount').addEventListener('input', function() {
-      var currency = document.getElementById('currency').value
-      document.getElementById('payBtn').textContent = 'Payer ' + Number(this.value).toLocaleString('fr') + ' ' + currency
+    // Listeners globaux
+    CinetPaySeamless.on('payment.success', function(data) {
+      document.getElementById('status').textContent = 'Payé ! ' + data.amount + ' ' + data.currency
+    })
+
+    CinetPaySeamless.on('payment.failed', function() {
+      document.getElementById('status').textContent = 'Paiement refusé'
     })
 
     document.getElementById('payment-form').addEventListener('submit', function(e) {
       e.preventDefault()
 
-      var btn = document.getElementById('payBtn')
-      var statusEl = document.getElementById('status')
-      btn.disabled = true
-      btn.textContent = 'Chargement...'
-      statusEl.className = 'status'
-
       CinetPaySeamless.open({
-        // Mode Direct — en production, utilisez le mode Backend
         apiKey: 'sk_test_...',
         apiPassword: 'your_password',
         country: 'CI',
         merchantTransactionId: 'CMD-' + Date.now(),
         amount: parseInt(document.getElementById('amount').value),
-        currency: document.getElementById('currency').value,
-        designation: document.getElementById('designation').value,
+        currency: 'XOF',
+        designation: 'Commande',
         clientFirstName: document.getElementById('firstName').value,
         clientLastName: document.getElementById('lastName').value,
         clientEmail: document.getElementById('email').value,
@@ -280,30 +304,7 @@ Ferme le modal programmatiquement.
         notifyUrl: 'https://votre-site.com/webhook',
         successUrl: 'https://votre-site.com/success',
         failedUrl: 'https://votre-site.com/failed',
-        channel: 'PUSH',
-
-        onResponse: function(data) {
-          if (data.status === 'ACCEPTED') {
-            statusEl.className = 'status success'
-            statusEl.textContent = 'Paiement réussi ! Montant: ' + data.amount + ' ' + data.currency
-          } else {
-            statusEl.className = 'status error'
-            statusEl.textContent = 'Paiement refusé. Veuillez réessayer.'
-          }
-        },
-
-        onClose: function() {
-          btn.disabled = false
-          var currency = document.getElementById('currency').value
-          btn.textContent = 'Payer ' + Number(document.getElementById('amount').value).toLocaleString('fr') + ' ' + currency
-        },
-
-        onError: function(err) {
-          statusEl.className = 'status error'
-          statusEl.textContent = 'Erreur: ' + err.message
-          btn.disabled = false
-          btn.textContent = 'Réessayer'
-        }
+        debug: true,
       })
     })
   </script>
@@ -311,110 +312,32 @@ Ferme le modal programmatiquement.
 </html>
 ```
 
-### React (formulaire complet)
-
-```tsx
-import { useState } from 'react'
-import { CinetPaySeamless } from 'cinetpay-seamless'
-
-function CheckoutForm() {
-  const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '', phone: '',
-    amount: 5000, currency: 'XOF',
-  })
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setStatus('idle')
-
-    try {
-      // Appeler votre backend pour initialiser le paiement
-      const res = await fetch('/api/pay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const { paymentToken } = await res.json()
-
-      CinetPaySeamless.open({
-        paymentToken,
-        onResponse: (data) => {
-          setStatus(data.status === 'ACCEPTED' ? 'success' : 'error')
-        },
-        onClose: () => setLoading(false),
-        onError: () => {
-          setStatus('error')
-          setLoading(false)
-        },
-      })
-    } catch {
-      setStatus('error')
-      setLoading(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <input placeholder="Prénom" required
-          value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} />
-        <input placeholder="Nom" required
-          value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} />
-      </div>
-      <input type="email" placeholder="Email" required
-        value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-      <input type="tel" placeholder="+2250707000000" required
-        value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
-      <div style={{ display: 'flex', gap: 12 }}>
-        <input type="number" min={100} required
-          value={form.amount} onChange={e => setForm(f => ({ ...f, amount: +e.target.value }))} />
-        <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}>
-          <option value="XOF">XOF</option>
-          <option value="XAF">XAF</option>
-        </select>
-      </div>
-
-      <button type="submit" disabled={loading}>
-        {loading ? 'Chargement...' : `Payer ${form.amount.toLocaleString('fr')} ${form.currency}`}
-      </button>
-
-      {status === 'success' && <p style={{ color: 'green' }}>Paiement réussi !</p>}
-      {status === 'error' && <p style={{ color: 'red' }}>Paiement échoué. Réessayez.</p>}
-    </form>
-  )
-}
-```
-
-## Intégrations framework
-
 ### React
 
 ```tsx
+import { useEffect } from 'react'
 import { CinetPaySeamless } from 'cinetpay-seamless'
 
-function PayButton({ amount, orderId }: { amount: number; orderId: string }) {
+function CheckoutPage() {
+  useEffect(() => {
+    const unsub = CinetPaySeamless.on('payment.success', (data) => {
+      window.location.href = `/orders/${data.transactionId}/success`
+    })
+    return unsub // Cleanup on unmount
+  }, [])
+
   const handlePay = async () => {
     const res = await fetch('/api/pay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount, orderId }),
+      body: JSON.stringify({ amount: 5000 }),
     })
     const { paymentToken } = await res.json()
 
-    CinetPaySeamless.open({
-      paymentToken,
-      onResponse: (data) => {
-        if (data.status === 'ACCEPTED') {
-          window.location.href = `/orders/${orderId}/success`
-        }
-      },
-    })
+    CinetPaySeamless.open({ paymentToken, debug: true })
   }
 
-  return <button onClick={handlePay}>Payer {amount} XOF</button>
+  return <button onClick={handlePay}>Payer 5 000 XOF</button>
 }
 ```
 
@@ -422,31 +345,71 @@ function PayButton({ amount, orderId }: { amount: number; orderId: string }) {
 
 ```vue
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
 import { CinetPaySeamless } from 'cinetpay-seamless'
+
+let unsub: (() => void) | null = null
+
+onMounted(() => {
+  unsub = CinetPaySeamless.on('payment.success', (data) => {
+    alert('Merci ! ' + data.amount + ' ' + data.currency)
+  })
+})
+
+onUnmounted(() => unsub?.())
 
 async function pay() {
   const res = await fetch('/api/pay', { method: 'POST', body: JSON.stringify({ amount: 5000 }) })
   const { paymentToken } = await res.json()
-
-  CinetPaySeamless.open({
-    paymentToken,
-    onResponse: (data) => {
-      if (data.status === 'ACCEPTED') alert('Merci !')
-    },
-  })
+  CinetPaySeamless.open({ paymentToken })
 }
 </script>
 
 <template>
-  <button @click="pay">Payer 5000 XOF</button>
+  <button @click="pay">Payer 5 000 XOF</button>
 </template>
+```
+
+## Debug
+
+Activez les logs avec `debug: true` :
+
+```typescript
+CinetPaySeamless.open({
+  paymentToken: 'abc...',
+  debug: true,
+})
+```
+
+Sortie console :
+```
+[CinetPay Seamless] CinetPaySeamless.open() called { mode: 'backend' }
+[CinetPay Seamless] Mode Backend — opening with paymentToken
+[CinetPay Seamless] Opening modal { paymentUrl: 'https://secure.cinetpay.net/checkout/abc...' }
+[CinetPay Seamless] Iframe loaded — checkout ready
+[CinetPay Seamless] Payment response: ACCEPTED { amount: 5000, currency: 'XOF', ... }
+[CinetPay Seamless] Payment accepted
+[CinetPay Seamless] Modal closed { lastStatus: 'ACCEPTED' }
 ```
 
 ## Sécurité
 
-- **Mode Backend** (recommandé) : les credentials API restent côté serveur, seul le `paymentToken` est exposé au frontend
-- **Mode Direct** : l'`apiKey` est visible dans le code source. Acceptable pour les clés sandbox, mais en production préférez le mode Backend
-- Toujours vérifier le statut du paiement côté serveur via le webhook (`notifyUrl`) avant de livrer un service
+- **Mode Backend** (recommandé) : les credentials restent côté serveur
+- **Mode Direct** : warning console si utilisé hors localhost
+- **postMessage** : whitelist stricte des domaines CinetPay (bloque les domaines lookalike)
+- **Iframe sandboxé** : `allow-scripts allow-same-origin allow-forms allow-popups` (pas de `allow-top-navigation`)
+- **paymentToken validé** : regex `[a-zA-Z0-9_-]{10,128}` avant injection dans l'URL
+- **Timeout** : 30s sur les requêtes fetch (auth + payment init)
+- **Zero dépendance** runtime
+
+## Environnements
+
+| Clé API | URL API | Environnement |
+|---|---|---|
+| `sk_test_...` | `https://api.cinetpay.net` | Sandbox |
+| `sk_live_...` | `https://api.cinetpay.co` | Production |
+
+Auto-détecté à partir du préfixe de la clé API.
 
 ## Support
 
