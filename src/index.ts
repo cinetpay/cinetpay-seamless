@@ -176,7 +176,7 @@ export const CinetPaySeamless = {
       currency: config.currency,
       merchant_transaction_id: config.merchantTransactionId,
       amount: config.amount,
-      lang: config.channel ?? 'fr',
+      lang: 'fr',
       designation: config.designation,
       client_email: config.clientEmail,
       client_first_name: config.clientFirstName,
@@ -185,6 +185,7 @@ export const CinetPaySeamless = {
       failed_url: config.failedUrl,
       notify_url: config.notifyUrl,
       channel: config.channel ?? 'PUSH',
+      direct_pay: false,
     }
 
     if (config.paymentMethod) body.payment_method = config.paymentMethod
