@@ -294,4 +294,116 @@ describe('CinetPaySeamless', () => {
       vi.useRealTimers()
     })
   })
+
+  describe('Timeout handling', () => {
+    it('calls onError when auth request times out', async () => {
+      globalThis.fetch = vi.fn(() =>
+        new Promise((_, reject) => {
+          const err = new DOMException('The operation was aborted', 'AbortError')
+          setTimeout(() => reject(err), 10)
+        }),
+      ) as unknown as typeof fetch
+
+      const onError = vi.fn()
+      await CinetPaySeamless.open({ ...DIRECT_CONFIG_BASE, onError })
+
+      expect(onError).toHaveBeenCalledWith({
+        code: 'INIT_FAILED',
+        message: 'Authentication request timed out',
+      })
+    })
+
+    it('calls onError when payment init times out', async () => {
+      let callCount = 0
+      globalThis.fetch = vi.fn(async () => {
+        callCount++
+        if (callCount === 1) return { json: () => Promise.resolve(AUTH_RESPONSE) }
+        // Second call (payment) throws abort
+        throw new DOMException('The operation was aborted', 'AbortError')
+      }) as unknown as typeof fetch
+
+      const onError = vi.fn()
+      await CinetPaySeamless.open({ ...DIRECT_CONFIG_BASE, onError })
+
+      expect(onError).toHaveBeenCalledWith({
+        code: 'INIT_FAILED',
+        message: 'Payment initialization request timed out',
+      })
+    })
+  })
+
+  describe('Direct mode warning', () => {
+    it('warns when used outside localhost', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      globalThis.fetch = createMockFetch(AUTH_RESPONSE, PAYMENT_RESPONSE) as unknown as typeof fetch
+
+      // jsdom hostname is 'localhost' by default, so we mock it
+      const originalHostname = window.location.hostname
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, hostname: 'example.com' },
+        writable: true,
+      })
+
+      await CinetPaySeamless.open(DIRECT_CONFIG_BASE)
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Mode Direct expose vos credentials'),
+      )
+
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, hostname: originalHostname },
+        writable: true,
+      })
+      warnSpy.mockRestore()
+    })
+  })
+
+  describe('Iframe close event', () => {
+    it('closes modal when iframe sends CLOSE action', () => {
+      vi.useFakeTimers()
+      const onClose = vi.fn()
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-close-test',
+        onClose,
+      })
+
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: 'https://secure.cinetpay.net',
+          data: { action: 'CLOSE' },
+        }),
+      )
+
+      vi.advanceTimersByTime(500)
+      expect(onClose).toHaveBeenCalled()
+      vi.useRealTimers()
+    })
+  })
+
+  describe('Debug mode', () => {
+    it('logs when debug is true', async () => {
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-debug-test',
+        debug: true,
+      })
+
+      expect(debugSpy).toHaveBeenCalled()
+      const calls = debugSpy.mock.calls.map(c => c[0])
+      expect(calls.some((c: string) => c.includes('[CinetPay Seamless]'))).toBe(true)
+      debugSpy.mockRestore()
+    })
+
+    it('does not log when debug is false', () => {
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-no-debug-1',
+        debug: false,
+      })
+
+      const calls = debugSpy.mock.calls.map(c => c[0])
+      expect(calls.some((c: string) => typeof c === 'string' && c.includes('[CinetPay Seamless]'))).toBe(false)
+      debugSpy.mockRestore()
+    })
+  })
 })
