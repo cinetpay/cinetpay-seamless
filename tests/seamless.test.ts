@@ -78,7 +78,7 @@ describe('CinetPaySeamless', () => {
     it('passes callbacks to modal', () => {
       const onResponse = vi.fn()
       CinetPaySeamless.open({
-        paymentToken: 'token',
+        paymentToken: 'valid-test-payment-token-abc123',
         onResponse,
       })
 
@@ -220,7 +220,7 @@ describe('CinetPaySeamless', () => {
   describe('close()', () => {
     it('closes the active modal', () => {
       vi.useFakeTimers()
-      CinetPaySeamless.open({ paymentToken: 'token' })
+      CinetPaySeamless.open({ paymentToken: 'valid-test-payment-token-abc123' })
       expect(document.querySelector('.cp-seamless-overlay')).not.toBeNull()
 
       CinetPaySeamless.close()
@@ -247,6 +247,30 @@ describe('CinetPaySeamless', () => {
         CinetPaySeamless.open({} as any),
       ).rejects.toThrow('apiPassword')
     })
+
+    it('rejects invalid paymentToken format', async () => {
+      await expect(
+        CinetPaySeamless.open({ paymentToken: '../../../etc/passwd' }),
+      ).rejects.toThrow('Invalid paymentToken format')
+    })
+
+    it('rejects paymentToken with special chars', async () => {
+      await expect(
+        CinetPaySeamless.open({ paymentToken: '<script>alert(1)</script>' }),
+      ).rejects.toThrow('Invalid paymentToken format')
+    })
+
+    it('rejects too short paymentToken', async () => {
+      await expect(
+        CinetPaySeamless.open({ paymentToken: 'abc' }),
+      ).rejects.toThrow('Invalid paymentToken format')
+    })
+
+    it('accepts valid paymentToken', () => {
+      expect(() =>
+        CinetPaySeamless.open({ paymentToken: '1ef969cf5da467dc98c70242f6c351d52eb3ff889b0f4f9e94078a1a0da6a2a3' }),
+      ).not.toThrow()
+    })
   })
 
   describe('Window global', () => {
@@ -260,13 +284,13 @@ describe('CinetPaySeamless', () => {
   describe('Multiple opens', () => {
     it('closes previous modal before opening new one', () => {
       vi.useFakeTimers()
-      CinetPaySeamless.open({ paymentToken: 'token-1' })
-      CinetPaySeamless.open({ paymentToken: 'token-2' })
+      CinetPaySeamless.open({ paymentToken: 'valid-test-token-first-1234' })
+      CinetPaySeamless.open({ paymentToken: 'valid-test-token-second-5678' })
       vi.advanceTimersByTime(500)
 
       const iframes = document.querySelectorAll('iframe')
       const lastIframe = iframes[iframes.length - 1]
-      expect(lastIframe?.src).toContain('token-2')
+      expect(lastIframe?.src).toContain('valid-test-token-second-5678')
       vi.useRealTimers()
     })
   })

@@ -292,6 +292,77 @@ describe('Modal', () => {
     expect(onResponse).not.toHaveBeenCalled()
   })
 
+  it('ignores messages from lookalike cinetpay domains', () => {
+    const onResponse = vi.fn()
+    const modal = new Modal({ onResponse })
+    modal.open('https://example.com/pay')
+
+    // Typosquatting / lookalike domains should be rejected
+    const fakeOrigins = [
+      'https://cinetpay.evil.com',
+      'https://fakecinetpay.net',
+      'https://secure.cinetpay.net.evil.com',
+      'https://cinetpay.com.attacker.io',
+    ]
+
+    for (const origin of fakeOrigins) {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin,
+          data: { status: 'ACCEPTED', amount: 999, transaction_id: 'FAKE' },
+        }),
+      )
+    }
+
+    expect(onResponse).not.toHaveBeenCalled()
+  })
+
+  it('accepts messages from all valid CinetPay origins', () => {
+    const validOrigins = [
+      'https://secure.cinetpay.net',
+      'https://secure.cinetpay.com',
+      'https://checkout.cinetpay.net',
+      'https://checkout.cinetpay.com',
+      'https://api.cinetpay.net',
+      'https://api.cinetpay.co',
+    ]
+
+    for (const origin of validOrigins) {
+      const onResponse = vi.fn()
+      const modal = new Modal({ onResponse, closeAfterResponse: false })
+      modal.open('https://example.com/pay')
+
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin,
+          data: { status: 'ACCEPTED', amount: 100, currency: 'XOF', transaction_id: 'TX' },
+        }),
+      )
+
+      expect(onResponse).toHaveBeenCalled()
+      modal.close()
+    }
+  })
+
+  it('iframe does not have allow-top-navigation', () => {
+    const modal = new Modal({})
+    modal.open('https://example.com/pay')
+
+    const iframe = document.querySelector('iframe')
+    const sandbox = iframe?.getAttribute('sandbox') ?? ''
+    expect(sandbox).not.toContain('allow-top-navigation')
+    expect(sandbox).toContain('allow-scripts')
+    expect(sandbox).toContain('allow-same-origin')
+  })
+
+  it('iframe has referrerpolicy', () => {
+    const modal = new Modal({})
+    modal.open('https://example.com/pay')
+
+    const iframe = document.querySelector('iframe')
+    expect(iframe?.getAttribute('referrerpolicy')).toBe('no-referrer')
+  })
+
   it('ignores non-JSON string messages', () => {
     const onResponse = vi.fn()
     const modal = new Modal({ onResponse })

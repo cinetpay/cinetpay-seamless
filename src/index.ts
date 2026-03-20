@@ -89,6 +89,11 @@ export const CinetPaySeamless = {
    * Mode Backend — ouvre le modal avec un paymentToken existant.
    */
   openWithToken(config: CommonConfig & BackendConfig): void {
+    // Validation du paymentToken — alphanumérique + tirets uniquement
+    if (!/^[a-zA-Z0-9_-]{10,128}$/.test(config.paymentToken)) {
+      throw new Error('Invalid paymentToken format — expected alphanumeric string (10-128 chars)')
+    }
+
     const paymentUrl = `${SECURE_BASE_URL}/checkout/${config.paymentToken}`
 
     this._modal = new Modal({
@@ -114,6 +119,14 @@ export const CinetPaySeamless = {
       onClose: config.onClose,
       onError: config.onError,
     })
+
+    // Warning: credentials exposés dans le frontend
+    if (typeof window !== 'undefined' && !window.location.hostname.match(/^(localhost|127\.0\.0\.1)$/)) {
+      console.warn(
+        '[CinetPay Seamless] WARNING: Mode Direct expose vos credentials (apiKey + apiPassword) ' +
+        'dans le code frontend. Utilisez le mode Backend (paymentToken) en production.',
+      )
+    }
 
     try {
       const baseUrl = this.resolveBaseUrl(config.apiKey)
@@ -147,14 +160,28 @@ export const CinetPaySeamless = {
    * @internal
    */
   async authenticate(baseUrl: string, apiKey: string, apiPassword: string): Promise<string> {
-    const response = await fetch(`${baseUrl}/v1/oauth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-        api_password: apiPassword,
-      }),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30_000)
+
+    let response: Response
+    try {
+      response = await fetch(`${baseUrl}/v1/oauth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: apiKey,
+          api_password: apiPassword,
+        }),
+        signal: controller.signal,
+      })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Authentication request timed out')
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     const data = await response.json() as Record<string, unknown>
 
@@ -191,14 +218,28 @@ export const CinetPaySeamless = {
     if (config.paymentMethod) body.payment_method = config.paymentMethod
     if (config.clientPhoneNumber) body.client_phone_number = config.clientPhoneNumber
 
-    const response = await fetch(`${baseUrl}/v1/payment`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30_000)
+
+    let response: Response
+    try {
+      response = await fetch(`${baseUrl}/v1/payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Payment initialization request timed out')
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     const data = await response.json() as Record<string, unknown>
 

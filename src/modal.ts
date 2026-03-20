@@ -203,7 +203,8 @@ export class Modal {
     this.iframe.src = paymentUrl
     this.iframe.style.display = 'none'
     this.iframe.setAttribute('allow', 'payment')
-    this.iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation')
+    this.iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups')
+    this.iframe.setAttribute('referrerpolicy', 'no-referrer')
     this.iframe.addEventListener('load', () => {
       loading.remove()
       if (this.iframe) this.iframe.style.display = 'block'
@@ -223,10 +224,21 @@ export class Modal {
     this.overlay!.appendChild(modal)
   }
 
+  /** Origines autorisées pour les messages postMessage */
+  private static readonly ALLOWED_ORIGINS = [
+    'https://secure.cinetpay.net',
+    'https://secure.cinetpay.com',
+    'https://checkout.cinetpay.net',
+    'https://checkout.cinetpay.com',
+    'https://api.cinetpay.net',
+    'https://api.cinetpay.co',
+  ]
+
   /** Écoute les messages postMessage de l'iframe CinetPay */
   private listenForMessages(): void {
     this.messageHandler = (event: MessageEvent) => {
-      if (!event.origin.includes('cinetpay')) return
+      // Vérification stricte de l'origine — seuls les domaines CinetPay sont acceptés
+      if (!Modal.ALLOWED_ORIGINS.some((o) => event.origin === o)) return
 
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
