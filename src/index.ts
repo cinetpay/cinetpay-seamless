@@ -10,6 +10,7 @@ import type {
 } from './types'
 import { isDirectConfig, isBackendConfig } from './types'
 import { Logger } from './logger'
+import { EventEmitter, type EventName, type EventMap } from './emitter'
 
 // Re-export types
 export type {
@@ -21,6 +22,7 @@ export type {
   PaymentError,
   PaymentStatus,
 }
+export type { EventName, EventMap } from './emitter'
 
 /** @internal URL de l'API CinetPay en sandbox */
 const API_BASE_URL_SANDBOX = 'https://api.cinetpay.net'
@@ -73,6 +75,80 @@ const REQUEST_TIMEOUT = 30_000
 export const CinetPaySeamless = {
   /** Instance du modal de paiement actuellement ouvert (`null` si fermé) */
   _modal: null as Modal | null,
+
+  /** Event emitter partagé entre toutes les sessions de paiement */
+  _emitter: new EventEmitter(),
+
+  /**
+   * Enregistre un handler pour un événement de paiement.
+   * Style Stripe.js : `CinetPaySeamless.on('payment.success', handler)`
+   *
+   * @param event - Nom de l'événement
+   * @param handler - Fonction appelée quand l'événement est émis
+   * @returns Fonction de désabonnement
+   *
+   * @example
+   * ```typescript
+   * CinetPaySeamless.on('payment.success', (data) => {
+   *   console.log('Payé !', data.amount, data.currency)
+   * })
+   *
+   * CinetPaySeamless.on('payment.failed', (data) => {
+   *   console.log('Refusé')
+   * })
+   *
+   * CinetPaySeamless.on('ready', () => {
+   *   console.log('Passerelle chargée')
+   * })
+   *
+   * CinetPaySeamless.on('close', ({ status }) => {
+   *   console.log('Fermé, statut:', status)
+   * })
+   *
+   * CinetPaySeamless.on('error', (err) => {
+   *   console.error(err.code, err.message)
+   * })
+   * ```
+   */
+  on<E extends EventName>(
+    event: E,
+    handler: EventMap[E] extends void ? () => void : (data: EventMap[E]) => void,
+  ): () => void {
+    return this._emitter.on(event, handler)
+  },
+
+  /**
+   * Supprime un handler pour un événement.
+   *
+   * @param event - Nom de l'événement
+   * @param handler - Référence du handler à supprimer
+   */
+  off<E extends EventName>(
+    event: E,
+    handler: EventMap[E] extends void ? () => void : (data: EventMap[E]) => void,
+  ): void {
+    this._emitter.off(event, handler)
+  },
+
+  /**
+   * Enregistre un handler qui ne sera appelé qu'une seule fois.
+   *
+   * @param event - Nom de l'événement
+   * @param handler - Fonction appelée une seule fois
+   *
+   * @example
+   * ```typescript
+   * CinetPaySeamless.once('payment.success', (data) => {
+   *   // Ne sera appelé qu'une seule fois
+   * })
+   * ```
+   */
+  once<E extends EventName>(
+    event: E,
+    handler: EventMap[E] extends void ? () => void : (data: EventMap[E]) => void,
+  ): void {
+    this._emitter.once(event, handler)
+  },
 
   /**
    * Ouvre le modal de paiement CinetPay.
@@ -170,6 +246,7 @@ export const CinetPaySeamless = {
       theme: config.theme,
       closeAfterResponse: config.closeAfterResponse,
       logger,
+      emitter: this._emitter,
       onReady: config.onReady,
       onPaymentSuccess: config.onPaymentSuccess,
       onPaymentFailed: config.onPaymentFailed,
@@ -198,6 +275,7 @@ export const CinetPaySeamless = {
       theme: config.theme,
       closeAfterResponse: config.closeAfterResponse,
       logger,
+      emitter: this._emitter,
       onReady: config.onReady,
       onPaymentSuccess: config.onPaymentSuccess,
       onPaymentFailed: config.onPaymentFailed,

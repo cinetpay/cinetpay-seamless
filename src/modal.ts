@@ -1,6 +1,7 @@
 import { STYLES } from './styles'
 import type { PaymentResponse, PaymentError, PaymentStatus } from './types'
 import { Logger } from './logger'
+import { EventEmitter } from './emitter'
 
 /** @internal Chemin SVG de l'icône de fermeture (croix) */
 const CLOSE_ICON_PATH = 'M2,2 L14,14 M14,2 L2,14'
@@ -15,8 +16,10 @@ interface ModalOptions {
   onPaymentPending?: (data: PaymentResponse) => void
   onClose?: (data: { status: string }) => void
   onError?: (error: PaymentError) => void
-  /** Instance du logger (activé ou désactivé) */
+  /** Instance du logger */
   logger: Logger
+  /** Event emitter partagé */
+  emitter: EventEmitter
 }
 
 /**
@@ -54,6 +57,8 @@ export class Modal {
   private messageHandler: ((event: MessageEvent) => void) | null = null
   /** Logger interne */
   private logger: Logger
+  /** Event emitter partagé */
+  private emitter: EventEmitter
 
   /**
    * Crée une nouvelle instance de modal.
@@ -64,6 +69,7 @@ export class Modal {
     this.theme = options.theme ?? 'light'
     this.closeAfterResponse = options.closeAfterResponse ?? true
     this.logger = options.logger
+    this.emitter = options.emitter
     this.onReadyCallback = options.onReady
     this.onPaymentSuccessCallback = options.onPaymentSuccess
     this.onPaymentFailedCallback = options.onPaymentFailed
@@ -113,6 +119,7 @@ export class Modal {
       }
 
       this.logger.debug('Modal closed', { lastStatus: this.lastStatus })
+      this.emitter.emit('close', { status: this.lastStatus })
       this.onCloseCallback?.({ status: this.lastStatus })
     }, 300)
   }
@@ -135,10 +142,12 @@ export class Modal {
     switch (response.status) {
       case 'ACCEPTED':
         this.logger.debug('Payment accepted')
+        this.emitter.emit('payment.success', response)
         this.onPaymentSuccessCallback?.(response)
         break
       case 'REFUSED':
         this.logger.warn('Payment refused')
+        this.emitter.emit('payment.failed', response)
         this.onPaymentFailedCallback?.(response)
         break
       case 'PENDING':
@@ -146,6 +155,7 @@ export class Modal {
       case 'EXPIRED':
       default:
         this.logger.debug(`Payment pending: ${response.status}`)
+        this.emitter.emit('payment.pending', response)
         this.onPaymentPendingCallback?.(response)
         break
     }
@@ -304,6 +314,7 @@ export class Modal {
       loading.remove()
       if (this.iframe) this.iframe.style.display = 'block'
       this.logger.debug('Iframe loaded — checkout ready')
+      this.emitter.emit('ready')
       this.onReadyCallback?.()
     })
 
@@ -373,6 +384,7 @@ export class Modal {
             message: data.message ?? data.error ?? 'An error occurred',
           }
           this.logger.error('Payment error from iframe', err)
+          this.emitter.emit('error', err)
           this.onErrorCallback?.(err)
         }
 

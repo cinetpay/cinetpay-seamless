@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Modal } from '../src/modal'
 import { Logger } from '../src/logger'
+import { EventEmitter } from '../src/emitter'
 
 const noopLogger = new Logger(false)
+const emitter = new EventEmitter()
 
 describe('Modal', () => {
   beforeEach(() => {
@@ -17,7 +19,7 @@ describe('Modal', () => {
   })
 
   it('opens and adds overlay to DOM', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://secure.cinetpay.net/checkout/test-token')
 
     const overlay = document.querySelector('.cp-seamless-overlay')
@@ -25,7 +27,7 @@ describe('Modal', () => {
   })
 
   it('injects styles into head', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://secure.cinetpay.net/checkout/test-token')
 
     const style = document.getElementById('cp-seamless-styles')
@@ -34,10 +36,10 @@ describe('Modal', () => {
   })
 
   it('does not duplicate styles on multiple opens', () => {
-    const modal1 = new Modal({ logger: noopLogger })
+    const modal1 = new Modal({ logger: noopLogger, emitter })
     modal1.open('https://example.com/pay1')
 
-    const modal2 = new Modal({ logger: noopLogger })
+    const modal2 = new Modal({ logger: noopLogger, emitter })
     modal2.open('https://example.com/pay2')
 
     const styles = document.querySelectorAll('#cp-seamless-styles')
@@ -45,7 +47,7 @@ describe('Modal', () => {
   })
 
   it('creates an iframe with the payment URL', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://secure.cinetpay.net/checkout/abc123')
 
     const iframe = document.querySelector('iframe')
@@ -54,7 +56,7 @@ describe('Modal', () => {
   })
 
   it('sets sandbox attribute on iframe', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://secure.cinetpay.net/checkout/abc123')
 
     const iframe = document.querySelector('iframe')
@@ -64,7 +66,7 @@ describe('Modal', () => {
   })
 
   it('blocks body scroll when open', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     expect(document.body.style.overflow).toBe('hidden')
@@ -72,7 +74,7 @@ describe('Modal', () => {
 
   it('restores body scroll after close', () => {
     vi.useFakeTimers()
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
     modal.close()
 
@@ -83,7 +85,7 @@ describe('Modal', () => {
 
   it('removes overlay from DOM after close', () => {
     vi.useFakeTimers()
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
     modal.close()
 
@@ -96,7 +98,7 @@ describe('Modal', () => {
   it('calls onClose callback when closed', () => {
     vi.useFakeTimers()
     const onClose = vi.fn()
-    const modal = new Modal({ onClose, logger: noopLogger })
+    const modal = new Modal({ onClose, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
     modal.close()
 
@@ -108,7 +110,7 @@ describe('Modal', () => {
   it('closes when clicking overlay background', () => {
     vi.useFakeTimers()
     const onClose = vi.fn()
-    const modal = new Modal({ onClose, logger: noopLogger })
+    const modal = new Modal({ onClose, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const overlay = document.querySelector('.cp-seamless-overlay') as HTMLElement
@@ -121,7 +123,7 @@ describe('Modal', () => {
 
   it('does not close when clicking modal content', () => {
     const onClose = vi.fn()
-    const modal = new Modal({ onClose, logger: noopLogger })
+    const modal = new Modal({ onClose, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const modalEl = document.querySelector('.cp-seamless-modal') as HTMLElement
@@ -133,7 +135,7 @@ describe('Modal', () => {
   it('closes when clicking close button', () => {
     vi.useFakeTimers()
     const onClose = vi.fn()
-    const modal = new Modal({ onClose, logger: noopLogger })
+    const modal = new Modal({ onClose, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const closeBtn = document.querySelector('.cp-seamless-close') as HTMLElement
@@ -145,7 +147,7 @@ describe('Modal', () => {
   })
 
   it('applies dark theme class', () => {
-    const modal = new Modal({ theme: 'dark', logger: noopLogger })
+    const modal = new Modal({ theme: 'dark', logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const modalEl = document.querySelector('.cp-seamless-modal')
@@ -153,7 +155,7 @@ describe('Modal', () => {
   })
 
   it('applies light theme by default', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const modalEl = document.querySelector('.cp-seamless-modal')
@@ -161,7 +163,7 @@ describe('Modal', () => {
   })
 
   it('shows loading spinner initially', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     expect(document.querySelector('.cp-seamless-loading')).not.toBeNull()
@@ -169,7 +171,7 @@ describe('Modal', () => {
   })
 
   it('shows CinetPay logo in header', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const logo = document.querySelector('.cp-seamless-logo')
@@ -179,7 +181,7 @@ describe('Modal', () => {
 
   it('calls onReady when iframe loads', () => {
     const onReady = vi.fn()
-    const modal = new Modal({ onReady, logger: noopLogger })
+    const modal = new Modal({ onReady, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     // Simulate iframe load event
@@ -192,7 +194,7 @@ describe('Modal', () => {
   it('dispatches PENDING status to onPaymentPending', () => {
     const onPaymentPending = vi.fn()
     const onPaymentSuccess = vi.fn()
-    const modal = new Modal({ onPaymentPending, onPaymentSuccess, closeAfterResponse: false, logger: noopLogger })
+    const modal = new Modal({ onPaymentPending, onPaymentSuccess, closeAfterResponse: false, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -210,7 +212,7 @@ describe('Modal', () => {
 
   it('dispatches INITIATED status to onPaymentPending', () => {
     const onPaymentPending = vi.fn()
-    const modal = new Modal({ onPaymentPending, closeAfterResponse: false, logger: noopLogger })
+    const modal = new Modal({ onPaymentPending, closeAfterResponse: false, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -226,7 +228,7 @@ describe('Modal', () => {
   })
 
   it('does not show result screen for PENDING status', () => {
-    const modal = new Modal({ closeAfterResponse: true, logger: noopLogger })
+    const modal = new Modal({ closeAfterResponse: true, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -243,7 +245,7 @@ describe('Modal', () => {
   it('does not call onPaymentSuccess for REFUSED', () => {
     const onPaymentSuccess = vi.fn()
     const onPaymentFailed = vi.fn()
-    const modal = new Modal({ onPaymentSuccess, onPaymentFailed, closeAfterResponse: false, logger: noopLogger })
+    const modal = new Modal({ onPaymentSuccess, onPaymentFailed, closeAfterResponse: false, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -258,7 +260,7 @@ describe('Modal', () => {
   })
 
   it('shows footer with security text', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const footer = document.querySelector('.cp-seamless-footer')
@@ -268,7 +270,7 @@ describe('Modal', () => {
 
   it('handles postMessage ACCEPTED response', () => {
     const onPaymentSuccess = vi.fn()
-    const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false, logger: noopLogger })
+    const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -298,7 +300,7 @@ describe('Modal', () => {
 
   it('handles REFUSED status via onPaymentFailed', () => {
     const onPaymentFailed = vi.fn()
-    const modal = new Modal({ onPaymentFailed, closeAfterResponse: false, logger: noopLogger })
+    const modal = new Modal({ onPaymentFailed, closeAfterResponse: false, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -314,7 +316,7 @@ describe('Modal', () => {
   })
 
   it('shows success result screen on closeAfterResponse', () => {
-    const modal = new Modal({ closeAfterResponse: true, logger: noopLogger })
+    const modal = new Modal({ closeAfterResponse: true, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -329,7 +331,7 @@ describe('Modal', () => {
   })
 
   it('shows failure result screen', () => {
-    const modal = new Modal({ closeAfterResponse: true, logger: noopLogger })
+    const modal = new Modal({ closeAfterResponse: true, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -344,7 +346,7 @@ describe('Modal', () => {
 
   it('calls onError on error messages', () => {
     const onError = vi.fn()
-    const modal = new Modal({ onError, logger: noopLogger })
+    const modal = new Modal({ onError, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -362,7 +364,7 @@ describe('Modal', () => {
 
   it('ignores messages from non-cinetpay origins', () => {
     const onPaymentSuccess = vi.fn()
-    const modal = new Modal({ onPaymentSuccess, logger: noopLogger })
+    const modal = new Modal({ onPaymentSuccess, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -377,7 +379,7 @@ describe('Modal', () => {
 
   it('ignores messages from lookalike cinetpay domains', () => {
     const onPaymentSuccess = vi.fn()
-    const modal = new Modal({ onPaymentSuccess, logger: noopLogger })
+    const modal = new Modal({ onPaymentSuccess, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     // Typosquatting / lookalike domains should be rejected
@@ -412,7 +414,7 @@ describe('Modal', () => {
 
     for (const origin of validOrigins) {
       const onPaymentSuccess = vi.fn()
-      const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false, logger: noopLogger })
+      const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false, logger: noopLogger, emitter })
       modal.open('https://example.com/pay')
 
       window.dispatchEvent(
@@ -428,7 +430,7 @@ describe('Modal', () => {
   })
 
   it('iframe does not have allow-top-navigation', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const iframe = document.querySelector('iframe')
@@ -439,7 +441,7 @@ describe('Modal', () => {
   })
 
   it('iframe has referrerpolicy', () => {
-    const modal = new Modal({ logger: noopLogger })
+    const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     const iframe = document.querySelector('iframe')
@@ -448,7 +450,7 @@ describe('Modal', () => {
 
   it('ignores non-JSON string messages', () => {
     const onPaymentSuccess = vi.fn()
-    const modal = new Modal({ onPaymentSuccess, logger: noopLogger })
+    const modal = new Modal({ onPaymentSuccess, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -463,7 +465,7 @@ describe('Modal', () => {
 
   it('parses JSON string messages', () => {
     const onPaymentSuccess = vi.fn()
-    const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false, logger: noopLogger })
+    const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -486,7 +488,7 @@ describe('Modal', () => {
   it('removes message listener after close', () => {
     vi.useFakeTimers()
     const onPaymentSuccess = vi.fn()
-    const modal = new Modal({ onPaymentSuccess, logger: noopLogger })
+    const modal = new Modal({ onPaymentSuccess, logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
     modal.close()
 
