@@ -1,5 +1,5 @@
 {
-  "name": "@cinetpay/seamless",
+  "name": "cinetpay-seamless",
   "version": "0.1.0",
   "description": "CinetPay Seamless — inline payment modal for web applications. No redirect, no iframe. Works with any framework.",
   "type": "module",

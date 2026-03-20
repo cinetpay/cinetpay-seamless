@@ -1,4 +1,4 @@
-# @cinetpay/seamless
+# cinetpay-seamless
 
 CinetPay Seamless — paiement inline sans redirection pour applications web.
 
@@ -9,13 +9,13 @@ Le modal de paiement s'affiche directement dans votre page. Le client ne quitte 
 ### npm / yarn / pnpm
 
 ```bash
-npm install @cinetpay/seamless
+npm install cinetpay-seamless
 ```
 
 ### CDN (script tag)
 
 ```html
-<script src="https://unpkg.com/@cinetpay/seamless/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
 ```
 
 ## Utilisation
@@ -25,7 +25,7 @@ npm install @cinetpay/seamless
 Le serveur initialise le paiement via le SDK `cinetpay-js` et passe le `paymentToken` au frontend.
 
 ```typescript
-import { CinetPaySeamless } from '@cinetpay/seamless'
+import { CinetPaySeamless } from 'cinetpay-seamless'
 
 // Le backend retourne un paymentToken après avoir initialisé le paiement
 const { paymentToken } = await fetch('/api/pay', {
@@ -54,7 +54,7 @@ CinetPaySeamless.open({
 Le frontend appelle l'API CinetPay directement. Les credentials sont exposés dans le code source.
 
 ```typescript
-import { CinetPaySeamless } from '@cinetpay/seamless'
+import { CinetPaySeamless } from 'cinetpay-seamless'
 
 CinetPaySeamless.open({
   apiKey: 'sk_test_...',
@@ -80,7 +80,7 @@ CinetPaySeamless.open({
 ### CDN / Vanilla JS
 
 ```html
-<script src="https://unpkg.com/@cinetpay/seamless/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
 <script>
   document.getElementById('pay-btn').addEventListener('click', function() {
     CinetPaySeamless.open({
@@ -164,7 +164,7 @@ Ferme le modal programmatiquement.
 ### React
 
 ```tsx
-import { CinetPaySeamless } from '@cinetpay/seamless'
+import { CinetPaySeamless } from 'cinetpay-seamless'
 
 function PayButton({ amount, orderId }: { amount: number; orderId: string }) {
   const handlePay = async () => {
@@ -193,7 +193,7 @@ function PayButton({ amount, orderId }: { amount: number; orderId: string }) {
 
 ```vue
 <script setup lang="ts">
-import { CinetPaySeamless } from '@cinetpay/seamless'
+import { CinetPaySeamless } from 'cinetpay-seamless'
 
 async function pay() {
   const res = await fetch('/api/pay', { method: 'POST', body: JSON.stringify({ amount: 5000 }) })
