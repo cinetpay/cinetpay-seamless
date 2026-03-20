@@ -370,6 +370,162 @@ async function pay() {
 </template>
 ```
 
+### Next.js (App Router)
+
+**Backend — `app/api/pay/route.ts` :**
+```typescript
+import { CinetPayClient } from 'cinetpay-js'
+import { NextResponse } from 'next/server'
+
+const client = new CinetPayClient({
+  credentials: {
+    CI: {
+      apiKey: process.env.CINETPAY_API_KEY_CI!,
+      apiPassword: process.env.CINETPAY_API_PASSWORD_CI!,
+    },
+  },
+})
+
+export async function POST(req: Request) {
+  const { amount, orderId, email, firstName, lastName, phone } = await req.json()
+
+  const payment = await client.payment.initialize({
+    currency: 'XOF',
+    merchantTransactionId: orderId,
+    amount,
+    lang: 'fr',
+    designation: `Commande ${orderId}`,
+    clientEmail: email,
+    clientFirstName: firstName,
+    clientLastName: lastName,
+    clientPhoneNumber: phone,
+    successUrl: `${process.env.APP_URL}/orders/${orderId}/success`,
+    failedUrl: `${process.env.APP_URL}/orders/${orderId}/failed`,
+    notifyUrl: `${process.env.APP_URL}/api/webhook`,
+    channel: 'PUSH',
+  }, 'CI')
+
+  // Sauvegarder payment.notifyToken en BDD pour le webhook
+  return NextResponse.json({ paymentToken: payment.paymentToken })
+}
+```
+
+**Frontend — `app/checkout/page.tsx` :**
+```tsx
+'use client'
+import { useEffect } from 'react'
+import { CinetPaySeamless } from 'cinetpay-seamless'
+
+export default function CheckoutPage() {
+  useEffect(() => {
+    const unsubSuccess = CinetPaySeamless.on('payment.success', (data) => {
+      window.location.href = `/orders/${data.transactionId}/success`
+    })
+    const unsubFailed = CinetPaySeamless.on('payment.failed', () => {
+      alert('Paiement refusé. Veuillez réessayer.')
+    })
+    return () => { unsubSuccess(); unsubFailed() }
+  }, [])
+
+  const handlePay = async () => {
+    const res = await fetch('/api/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: 5000,
+        orderId: `CMD-${Date.now()}`,
+        email: 'client@email.com',
+        firstName: 'Jean',
+        lastName: 'Dupont',
+        phone: '+2250707000000',
+      }),
+    })
+    const { paymentToken } = await res.json()
+
+    CinetPaySeamless.open({
+      paymentToken,
+      theme: 'dark', // Thème sombre
+      debug: true,
+    })
+  }
+
+  return (
+    <div>
+      <h1>Finaliser votre commande</h1>
+      <p>Total : 5 000 XOF</p>
+      <button onClick={handlePay}>Payer maintenant</button>
+    </div>
+  )
+}
+```
+
+### Paiement avec opérateur spécifique (Orange Money)
+
+```typescript
+CinetPaySeamless.open({
+  apiKey: 'sk_test_...',
+  apiPassword: 'password',
+  country: 'CI',
+  merchantTransactionId: `OM-${Date.now()}`,
+  amount: 2000,
+  currency: 'XOF',
+  designation: 'Recharge Orange Money',
+  clientEmail: 'client@email.com',
+  clientFirstName: 'Amadou',
+  clientLastName: 'Koné',
+  clientPhoneNumber: '+2250707000000',
+  notifyUrl: 'https://monsite.com/webhook',
+  successUrl: 'https://monsite.com/success',
+  failedUrl: 'https://monsite.com/failed',
+  paymentMethod: 'OM_CI', // Force Orange Money CI
+  channel: 'PUSH',
+  theme: 'dark',
+  debug: true,
+  onPaymentSuccess: (data) => {
+    console.log(`Payé via ${data.paymentMethod} !`)
+  },
+})
+```
+
+### Gestion d'erreur complète
+
+```typescript
+CinetPaySeamless.on('payment.success', (data) => {
+  showToast('success', `Paiement de ${data.amount} ${data.currency} confirmé !`)
+  redirectTo(`/orders/${data.transactionId}/success`)
+})
+
+CinetPaySeamless.on('payment.failed', (data) => {
+  showToast('error', 'Le paiement a été refusé.')
+  enablePayButton()
+})
+
+CinetPaySeamless.on('payment.pending', (data) => {
+  showToast('info', `Paiement en cours (${data.status})... Veuillez patienter.`)
+})
+
+CinetPaySeamless.on('error', (err) => {
+  if (err.code === 'INIT_FAILED') {
+    showToast('error', 'Impossible d\'initialiser le paiement. Vérifiez votre connexion.')
+  } else {
+    showToast('error', `Erreur: ${err.message}`)
+  }
+  enablePayButton()
+})
+
+CinetPaySeamless.on('close', ({ status }) => {
+  if (status === 'UNKNOWN') {
+    // L'utilisateur a fermé le modal sans terminer le paiement
+    showToast('warning', 'Paiement annulé.')
+  }
+  enablePayButton()
+})
+
+CinetPaySeamless.on('ready', () => {
+  disablePayButton() // Empêcher les doubles clics
+})
+```
+
 ## Debug
 
 Activez les logs avec `debug: true` :
