@@ -19,22 +19,36 @@ export type {
   PaymentError,
 }
 
+/** @internal URL de l'API CinetPay en sandbox */
 const API_BASE_URL_SANDBOX = 'https://api.cinetpay.net'
+/** @internal URL de l'API CinetPay en production */
 const API_BASE_URL_PROD = 'https://api.cinetpay.co'
+/** @internal Préfixe des clés API sandbox */
 const API_KEY_PREFIX_TEST = 'sk_test_'
+/** @internal URL de base de la passerelle de paiement sécurisée */
 const SECURE_BASE_URL = 'https://secure.cinetpay.net'
+/** @internal Timeout par défaut des requêtes HTTP en millisecondes */
+const REQUEST_TIMEOUT = 30_000
 
 /**
  * CinetPay Seamless — intégration de paiement inline sans redirection.
  *
+ * Affiche un modal contenant la passerelle de paiement CinetPay
+ * directement dans votre page. Le client ne quitte jamais votre site.
+ *
  * Deux modes d'utilisation :
  *
- * **Mode Backend** — le serveur initialise le paiement et passe le token :
+ * **Mode Backend** (recommandé) — le serveur initialise le paiement
+ * via le SDK `cinetpay-js` et passe le `paymentToken` au frontend :
  * ```typescript
- * CinetPaySeamless.open({ paymentToken: 'token-du-backend' })
+ * CinetPaySeamless.open({
+ *   paymentToken: 'token-du-backend',
+ *   onResponse: (data) => console.log(data.status),
+ * })
  * ```
  *
- * **Mode Direct** — le frontend s'authentifie et initialise le paiement :
+ * **Mode Direct** — le frontend s'authentifie (JWT) et initialise le
+ * paiement directement. Les credentials sont exposés côté client :
  * ```typescript
  * CinetPaySeamless.open({
  *   apiKey: 'sk_test_...',
@@ -54,14 +68,51 @@ const SECURE_BASE_URL = 'https://secure.cinetpay.net'
  * ```
  */
 export const CinetPaySeamless = {
-  /** Instance du modal actif */
+  /** Instance du modal de paiement actuellement ouvert (`null` si fermé) */
   _modal: null as Modal | null,
 
   /**
-   * Ouvre le modal de paiement.
+   * Ouvre le modal de paiement CinetPay.
    *
-   * @param config - Configuration du paiement (mode Direct ou Backend)
-   * @throws {Error} Si la configuration est invalide
+   * Détecte automatiquement le mode (Backend ou Direct) à partir
+   * des propriétés fournies dans la configuration.
+   *
+   * @param config - Configuration du paiement
+   * @throws {Error} Si la configuration est invalide (ni `paymentToken` ni `apiKey`+`apiPassword`)
+   * @throws {Error} Si le `paymentToken` a un format invalide (mode Backend)
+   *
+   * @example Mode Backend
+   * ```typescript
+   * CinetPaySeamless.open({
+   *   paymentToken: 'abc123def456...',
+   *   theme: 'dark',
+   *   onResponse: (data) => {
+   *     if (data.status === 'ACCEPTED') console.log('Payé !')
+   *   },
+   *   onClose: ({ status }) => console.log('Fermé:', status),
+   * })
+   * ```
+   *
+   * @example Mode Direct
+   * ```typescript
+   * CinetPaySeamless.open({
+   *   apiKey: 'sk_test_...',
+   *   apiPassword: 'password',
+   *   country: 'CI',
+   *   merchantTransactionId: 'ORDER-001',
+   *   amount: 5000,
+   *   currency: 'XOF',
+   *   designation: 'Commande',
+   *   clientEmail: 'client@email.com',
+   *   clientFirstName: 'Jean',
+   *   clientLastName: 'Dupont',
+   *   notifyUrl: 'https://monsite.com/webhook',
+   *   successUrl: 'https://monsite.com/success',
+   *   failedUrl: 'https://monsite.com/failed',
+   *   onResponse: (data) => console.log(data),
+   *   onError: (err) => console.error(err),
+   * })
+   * ```
    */
   async open(config: SeamlessConfig): Promise<void> {
     this.close()
@@ -79,6 +130,12 @@ export const CinetPaySeamless = {
 
   /**
    * Ferme le modal de paiement s'il est ouvert.
+   * Sans effet si aucun modal n'est actif.
+   *
+   * @example
+   * ```typescript
+   * CinetPaySeamless.close()
+   * ```
    */
   close(): void {
     this._modal?.close()
@@ -86,10 +143,16 @@ export const CinetPaySeamless = {
   },
 
   /**
-   * Mode Backend — ouvre le modal avec un paymentToken existant.
+   * Mode Backend — ouvre le modal avec un `paymentToken` obtenu
+   * via le SDK backend `cinetpay-js`.
+   *
+   * Le token est validé (format alphanumérique, 10-128 caractères)
+   * pour empêcher les injections d'URL.
+   *
+   * @param config - Configuration avec `paymentToken` et callbacks
+   * @throws {Error} Si le format du `paymentToken` est invalide
    */
   openWithToken(config: CommonConfig & BackendConfig): void {
-    // Validation du paymentToken — alphanumérique + tirets uniquement
     if (!/^[a-zA-Z0-9_-]{10,128}$/.test(config.paymentToken)) {
       throw new Error('Invalid paymentToken format — expected alphanumeric string (10-128 chars)')
     }
@@ -109,7 +172,15 @@ export const CinetPaySeamless = {
 
   /**
    * Mode Direct — authentification JWT puis initialisation du paiement.
-   * Flow : POST /v1/oauth/login → POST /v1/payment → ouvre le modal avec paymentUrl.
+   *
+   * Flow complet :
+   * 1. `POST /v1/oauth/login` → obtient un token JWT
+   * 2. `POST /v1/payment` (avec Bearer token) → obtient le `paymentUrl`
+   * 3. Ouvre le modal avec l'URL de la passerelle
+   *
+   * Émet un warning en console si utilisé hors localhost (credentials exposés).
+   *
+   * @param config - Configuration avec `apiKey`, `apiPassword`, données du paiement et callbacks
    */
   async openDirect(config: CommonConfig & DirectConfig): Promise<void> {
     const modal = new Modal({
@@ -120,7 +191,6 @@ export const CinetPaySeamless = {
       onError: config.onError,
     })
 
-    // Warning: credentials exposés dans le frontend
     if (typeof window !== 'undefined' && !window.location.hostname.match(/^(localhost|127\.0\.0\.1)$/)) {
       console.warn(
         '[CinetPay Seamless] WARNING: Mode Direct expose vos credentials (apiKey + apiPassword) ' +
@@ -130,11 +200,7 @@ export const CinetPaySeamless = {
 
     try {
       const baseUrl = this.resolveBaseUrl(config.apiKey)
-
-      // 1. Authentification JWT
       const token = await this.authenticate(baseUrl, config.apiKey, config.apiPassword)
-
-      // 2. Initialisation du paiement
       const paymentUrl = await this.initializePayment(baseUrl, token, config)
 
       this._modal = modal
@@ -148,7 +214,12 @@ export const CinetPaySeamless = {
   },
 
   /**
-   * Détermine l'URL de base à partir du préfixe de la clé API.
+   * Détermine l'URL de base de l'API à partir du préfixe de la clé API.
+   * - `sk_test_...` → `https://api.cinetpay.net` (sandbox)
+   * - `sk_live_...` → `https://api.cinetpay.co` (production)
+   *
+   * @param apiKey - Clé API CinetPay
+   * @returns URL de base de l'API
    * @internal
    */
   resolveBaseUrl(apiKey: string): string {
@@ -156,12 +227,18 @@ export const CinetPaySeamless = {
   },
 
   /**
-   * Authentification JWT via POST /v1/oauth/login.
+   * Authentification JWT via `POST /v1/oauth/login`.
+   *
+   * @param baseUrl - URL de base de l'API (sandbox ou production)
+   * @param apiKey - Clé API CinetPay
+   * @param apiPassword - Mot de passe API CinetPay
+   * @returns Token JWT Bearer
+   * @throws {Error} Si l'authentification échoue ou timeout (30s)
    * @internal
    */
   async authenticate(baseUrl: string, apiKey: string, apiPassword: string): Promise<string> {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30_000)
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
     let response: Response
     try {
@@ -195,7 +272,16 @@ export const CinetPaySeamless = {
   },
 
   /**
-   * Initialisation du paiement via POST /v1/payment.
+   * Initialisation du paiement via `POST /v1/payment`.
+   *
+   * Envoie les données de paiement avec `direct_pay: false` (le paiement
+   * est effectué via l'iframe, pas en programmatique).
+   *
+   * @param baseUrl - URL de base de l'API
+   * @param token - Token JWT obtenu via {@link authenticate}
+   * @param config - Données du paiement (montant, devise, client, URLs, etc.)
+   * @returns URL de la passerelle de paiement à charger dans l'iframe
+   * @throws {Error} Si l'initialisation échoue ou timeout (30s)
    * @internal
    */
   async initializePayment(baseUrl: string, token: string, config: DirectConfig): Promise<string> {
@@ -219,7 +305,7 @@ export const CinetPaySeamless = {
     if (config.clientPhoneNumber) body.client_phone_number = config.clientPhoneNumber
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30_000)
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
     let response: Response
     try {
@@ -249,12 +335,10 @@ export const CinetPaySeamless = {
       )
     }
 
-    // Si payment_url est retourné directement, l'utiliser
     if (data.payment_url) {
       return data.payment_url as string
     }
 
-    // Sinon construire l'URL depuis le payment_token
     return `${SECURE_BASE_URL}/checkout/${data.payment_token as string}`
   },
 }

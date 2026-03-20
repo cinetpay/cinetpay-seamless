@@ -1,3 +1,21 @@
+/**
+ * Styles CSS du modal CinetPay Seamless.
+ *
+ * Injectés dynamiquement dans le `<head>` via un élément `<style>`
+ * avec l'ID `cp-seamless-styles`. Ne sont injectés qu'une seule fois,
+ * même si plusieurs modals sont ouverts successivement.
+ *
+ * Structure CSS :
+ * - `.cp-seamless-overlay` — fond semi-transparent plein écran
+ * - `.cp-seamless-modal` — conteneur principal (max 420px, centré)
+ * - `.cp-seamless-header` — logo CinetPay + bouton fermer
+ * - `.cp-seamless-content` — iframe + spinner de chargement
+ * - `.cp-seamless-result` — écran succès/échec post-paiement
+ * - `.cp-seamless-footer` — mention "Paiement sécurisé par CinetPay"
+ * - `.cp-dark` — variante thème sombre
+ *
+ * Responsive : sur mobile (< 480px), le modal passe en plein écran.
+ */
 export const STYLES = `
 .cp-seamless-overlay {
   position: fixed;
