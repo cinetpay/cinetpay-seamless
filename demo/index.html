@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CinetPay Seamless — Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    .tab {
+      padding: 12px 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: #999;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      color: #e8530e;
+      border-bottom-color: #e8530e;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .field {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-weight: 500;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #555;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #e8530e;
+    }
+    .row {
+      display: flex;
+      gap: 12px;
+    }
+    .row .field { flex: 1; }
+    button.pay-btn {
+      width: 100%;
+      padding: 14px;
+      background: #e8530e;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    button.pay-btn:hover { background: #d14a0c; }
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      font-size: 13px;
+      color: #666;
+    }
+    #log {
+      margin-top: 24px;
+      padding: 16px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: 'SF Mono', Menlo, monospace;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+    }
+    #log.visible { display: block; }
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CinetPay Seamless</h1>
+    <p class="subtitle">Demo d'intégration — paiement inline sans redirection</p>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="direct">Mode Direct</div>
+      <div class="tab" data-tab="backend">Mode Backend</div>
+    </div>
+
+    <!-- Mode Direct -->
+    <div class="tab-content active" id="tab-direct">
+      <div class="row">
+        <div class="field">
+          <label>API Key</label>
+          <input type="text" id="apiKey" placeholder="sk_test_..." value="sk_test_JH2kpCc8xnCcvnCvPRpczFNe">
+        </div>
+        <div class="field">
+          <label>Site ID</label>
+          <input type="number" id="siteId" placeholder="123456" value="105898">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Montant</label>
+          <input type="number" id="amount" value="500">
+        </div>
+        <div class="field">
+          <label>Devise</label>
+          <select id="currency">
+            <option value="XOF" selected>XOF</option>
+            <option value="XAF">XAF</option>
+            <option value="GNF">GNF</option>
+            <option value="CDF">CDF</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <input type="text" id="description" value="Test Seamless SDK">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Nom</label>
+          <input type="text" id="customerName" value="Jean Dupont">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="customerEmail" value="jean@test.com">
+        </div>
+      </div>
+      <div class="field">
+        <label>Téléphone</label>
+        <input type="tel" id="customerPhone" value="+2250707070700">
+      </div>
+      <button class="pay-btn" id="btn-direct">Payer maintenant</button>
+    </div>
+
+    <!-- Mode Backend -->
+    <div class="tab-content" id="tab-backend">
+      <div class="field">
+        <label>Payment Token</label>
+        <input type="text" id="paymentToken" placeholder="Token obtenu via le SDK backend (cinetpay-js)">
+      </div>
+      <button class="pay-btn" id="btn-backend">Ouvrir le paiement</button>
+    </div>
+
+    <div class="theme-toggle">
+      <input type="checkbox" id="darkMode">
+      <label for="darkMode" style="margin: 0">Mode sombre</label>
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <script type="module">
+    import { CinetPaySeamless } from '../dist/cinetpay-seamless.js'
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
+        tab.classList.add('active')
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active')
+      })
+    })
+
+    function log(msg) {
+      const el = document.getElementById('log')
+      el.classList.add('visible')
+      const entry = document.createElement('div')
+      entry.className = 'log-entry'
+      entry.textContent = new Date().toLocaleTimeString() + ' — ' + msg
+      el.prepend(entry)
+    }
+
+    const getTheme = () => document.getElementById('darkMode').checked ? 'dark' : 'light'
+
+    // Mode Direct
+    document.getElementById('btn-direct').addEventListener('click', () => {
+      const txId = 'SEAMLESS-' + Date.now()
+      log('Initializing payment ' + txId + '...')
+
+      CinetPaySeamless.open({
+        apiKey: document.getElementById('apiKey').value,
+        siteId: parseInt(document.getElementById('siteId').value),
+        transactionId: txId,
+        amount: parseInt(document.getElementById('amount').value),
+        currency: document.getElementById('currency').value,
+        description: document.getElementById('description').value,
+        notifyUrl: 'https://example.com/webhook',
+        customerName: document.getElementById('customerName').value,
+        customerEmail: document.getElementById('customerEmail').value,
+        customerPhoneNumber: document.getElementById('customerPhone').value,
+        channels: 'ALL',
+        theme: getTheme(),
+        onResponse: (data) => {
+          log('Response: ' + data.status + ' — ' + data.amount + ' ' + data.currency)
+        },
+        onClose: (data) => {
+          log('Modal closed — status: ' + data.status)
+        },
+        onError: (err) => {
+          log('Error: ' + err.code + ' — ' + err.message)
+        },
+      })
+    })
+
+    // Mode Backend
+    document.getElementById('btn-backend').addEventListener('click', () => {
+      const token = document.getElementById('paymentToken').value
+      if (!token) {
+        log('Error: paymentToken is required')
+        return
+      }
+      log('Opening payment with token...')
+
+      CinetPaySeamless.open({
+        paymentToken: token,
+        theme: getTheme(),
+        onResponse: (data) => {
+          log('Response: ' + data.status + ' — ' + data.amount + ' ' + data.currency)
+        },
+        onClose: (data) => {
+          log('Modal closed — status: ' + data.status)
+        },
+        onError: (err) => {
+          log('Error: ' + err.code + ' — ' + err.message)
+        },
+      })
+    })
+  </script>
+</body>
+</html>
