@@ -6,6 +6,7 @@ import type {
   CommonConfig,
   PaymentResponse,
   PaymentError,
+  PaymentStatus,
 } from './types'
 import { isDirectConfig, isBackendConfig } from './types'
 
@@ -17,6 +18,7 @@ export type {
   CommonConfig,
   PaymentResponse,
   PaymentError,
+  PaymentStatus,
 }
 
 /** @internal URL de l'API CinetPay en sandbox */
@@ -162,7 +164,10 @@ export const CinetPaySeamless = {
     this._modal = new Modal({
       theme: config.theme,
       closeAfterResponse: config.closeAfterResponse,
-      onResponse: config.onResponse,
+      onReady: config.onReady,
+      onPaymentSuccess: config.onPaymentSuccess,
+      onPaymentFailed: config.onPaymentFailed,
+      onPaymentPending: config.onPaymentPending,
       onClose: config.onClose,
       onError: config.onError,
     })
@@ -186,7 +191,10 @@ export const CinetPaySeamless = {
     const modal = new Modal({
       theme: config.theme,
       closeAfterResponse: config.closeAfterResponse,
-      onResponse: config.onResponse,
+      onReady: config.onReady,
+      onPaymentSuccess: config.onPaymentSuccess,
+      onPaymentFailed: config.onPaymentFailed,
+      onPaymentPending: config.onPaymentPending,
       onClose: config.onClose,
       onError: config.onError,
     })

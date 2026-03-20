@@ -48,25 +48,34 @@ export interface CommonConfig {
   closeAfterResponse?: boolean
   /** Thème du modal */
   theme?: 'light' | 'dark'
-  /** Callback appelé quand le paiement est terminé (succès ou échec) */
-  onResponse?: (data: PaymentResponse) => void
+  /** Callback appelé quand l'iframe est chargée et la passerelle de paiement est visible */
+  onReady?: () => void
+  /** Callback appelé quand le paiement est accepté (statut ACCEPTED) */
+  onPaymentSuccess?: (data: PaymentResponse) => void
+  /** Callback appelé quand le paiement est refusé (statut REFUSED) */
+  onPaymentFailed?: (data: PaymentResponse) => void
+  /** Callback appelé quand le paiement est en attente (statut PENDING, INITIATED, etc.) */
+  onPaymentPending?: (data: PaymentResponse) => void
   /** Callback appelé quand le modal est fermé */
   onClose?: (data: { status: string }) => void
-  /** Callback appelé en cas d'erreur */
+  /** Callback appelé en cas d'erreur technique (timeout, réseau, init échouée) */
   onError?: (error: PaymentError) => void
 }
 
 /** Configuration complète — mode Direct OU Backend */
 export type SeamlessConfig = CommonConfig & (DirectConfig | BackendConfig)
 
-/** Réponse de paiement retournée dans onResponse */
+/** Statuts possibles d'un paiement */
+export type PaymentStatus = 'ACCEPTED' | 'REFUSED' | 'PENDING' | 'INITIATED' | 'EXPIRED' | 'UNKNOWN'
+
+/** Réponse de paiement retournée dans les callbacks */
 export interface PaymentResponse {
   /** Montant payé */
   amount: number
   /** Devise */
   currency: string
-  /** Statut : ACCEPTED ou REFUSED */
-  status: 'ACCEPTED' | 'REFUSED'
+  /** Statut du paiement */
+  status: PaymentStatus
   /** Code de l'opérateur (OM, MOMO, etc.) */
   paymentMethod: string
   /** Description du service */

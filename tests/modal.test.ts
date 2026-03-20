@@ -174,6 +174,86 @@ describe('Modal', () => {
     expect(logo?.querySelector('svg')).not.toBeNull()
   })
 
+  it('calls onReady when iframe loads', () => {
+    const onReady = vi.fn()
+    const modal = new Modal({ onReady })
+    modal.open('https://example.com/pay')
+
+    // Simulate iframe load event
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement
+    iframe.dispatchEvent(new Event('load'))
+
+    expect(onReady).toHaveBeenCalledOnce()
+  })
+
+  it('dispatches PENDING status to onPaymentPending', () => {
+    const onPaymentPending = vi.fn()
+    const onPaymentSuccess = vi.fn()
+    const modal = new Modal({ onPaymentPending, onPaymentSuccess, closeAfterResponse: false })
+    modal.open('https://example.com/pay')
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'PENDING', amount: 1000, currency: 'XOF', transaction_id: 'TX-P' },
+      }),
+    )
+
+    expect(onPaymentPending).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'PENDING' }),
+    )
+    expect(onPaymentSuccess).not.toHaveBeenCalled()
+  })
+
+  it('dispatches INITIATED status to onPaymentPending', () => {
+    const onPaymentPending = vi.fn()
+    const modal = new Modal({ onPaymentPending, closeAfterResponse: false })
+    modal.open('https://example.com/pay')
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'INITIATED', amount: 500, currency: 'XOF', transaction_id: 'TX-I' },
+      }),
+    )
+
+    expect(onPaymentPending).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'INITIATED' }),
+    )
+  })
+
+  it('does not show result screen for PENDING status', () => {
+    const modal = new Modal({ closeAfterResponse: true })
+    modal.open('https://example.com/pay')
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'PENDING', amount: 1000, currency: 'XOF', transaction_id: 'TX-NR' },
+      }),
+    )
+
+    // Result screen should NOT appear for non-final statuses
+    expect(document.querySelector('.cp-seamless-result')).toBeNull()
+  })
+
+  it('does not call onPaymentSuccess for REFUSED', () => {
+    const onPaymentSuccess = vi.fn()
+    const onPaymentFailed = vi.fn()
+    const modal = new Modal({ onPaymentSuccess, onPaymentFailed, closeAfterResponse: false })
+    modal.open('https://example.com/pay')
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'REFUSED', amount: 500, currency: 'XOF', transaction_id: 'TX-R' },
+      }),
+    )
+
+    expect(onPaymentFailed).toHaveBeenCalled()
+    expect(onPaymentSuccess).not.toHaveBeenCalled()
+  })
+
   it('shows footer with security text', () => {
     const modal = new Modal({})
     modal.open('https://example.com/pay')
@@ -184,8 +264,8 @@ describe('Modal', () => {
   })
 
   it('handles postMessage ACCEPTED response', () => {
-    const onResponse = vi.fn()
-    const modal = new Modal({ onResponse, closeAfterResponse: false })
+    const onPaymentSuccess = vi.fn()
+    const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -202,7 +282,7 @@ describe('Modal', () => {
       }),
     )
 
-    expect(onResponse).toHaveBeenCalledWith(
+    expect(onPaymentSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'ACCEPTED',
         amount: 1000,
@@ -213,9 +293,9 @@ describe('Modal', () => {
     )
   })
 
-  it('handles REFUSED status', () => {
-    const onResponse = vi.fn()
-    const modal = new Modal({ onResponse, closeAfterResponse: false })
+  it('handles REFUSED status via onPaymentFailed', () => {
+    const onPaymentFailed = vi.fn()
+    const modal = new Modal({ onPaymentFailed, closeAfterResponse: false })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -225,7 +305,7 @@ describe('Modal', () => {
       }),
     )
 
-    expect(onResponse).toHaveBeenCalledWith(
+    expect(onPaymentFailed).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'REFUSED' }),
     )
   })
@@ -278,8 +358,8 @@ describe('Modal', () => {
   })
 
   it('ignores messages from non-cinetpay origins', () => {
-    const onResponse = vi.fn()
-    const modal = new Modal({ onResponse })
+    const onPaymentSuccess = vi.fn()
+    const modal = new Modal({ onPaymentSuccess })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -289,12 +369,12 @@ describe('Modal', () => {
       }),
     )
 
-    expect(onResponse).not.toHaveBeenCalled()
+    expect(onPaymentSuccess).not.toHaveBeenCalled()
   })
 
   it('ignores messages from lookalike cinetpay domains', () => {
-    const onResponse = vi.fn()
-    const modal = new Modal({ onResponse })
+    const onPaymentSuccess = vi.fn()
+    const modal = new Modal({ onPaymentSuccess })
     modal.open('https://example.com/pay')
 
     // Typosquatting / lookalike domains should be rejected
@@ -314,7 +394,7 @@ describe('Modal', () => {
       )
     }
 
-    expect(onResponse).not.toHaveBeenCalled()
+    expect(onPaymentSuccess).not.toHaveBeenCalled()
   })
 
   it('accepts messages from all valid CinetPay origins', () => {
@@ -328,8 +408,8 @@ describe('Modal', () => {
     ]
 
     for (const origin of validOrigins) {
-      const onResponse = vi.fn()
-      const modal = new Modal({ onResponse, closeAfterResponse: false })
+      const onPaymentSuccess = vi.fn()
+      const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false })
       modal.open('https://example.com/pay')
 
       window.dispatchEvent(
@@ -339,7 +419,7 @@ describe('Modal', () => {
         }),
       )
 
-      expect(onResponse).toHaveBeenCalled()
+      expect(onPaymentSuccess).toHaveBeenCalled()
       modal.close()
     }
   })
@@ -364,8 +444,8 @@ describe('Modal', () => {
   })
 
   it('ignores non-JSON string messages', () => {
-    const onResponse = vi.fn()
-    const modal = new Modal({ onResponse })
+    const onPaymentSuccess = vi.fn()
+    const modal = new Modal({ onPaymentSuccess })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -375,12 +455,12 @@ describe('Modal', () => {
       }),
     )
 
-    expect(onResponse).not.toHaveBeenCalled()
+    expect(onPaymentSuccess).not.toHaveBeenCalled()
   })
 
   it('parses JSON string messages', () => {
-    const onResponse = vi.fn()
-    const modal = new Modal({ onResponse, closeAfterResponse: false })
+    const onPaymentSuccess = vi.fn()
+    const modal = new Modal({ onPaymentSuccess, closeAfterResponse: false })
     modal.open('https://example.com/pay')
 
     window.dispatchEvent(
@@ -395,15 +475,15 @@ describe('Modal', () => {
       }),
     )
 
-    expect(onResponse).toHaveBeenCalledWith(
+    expect(onPaymentSuccess).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'ACCEPTED', amount: 2000 }),
     )
   })
 
   it('removes message listener after close', () => {
     vi.useFakeTimers()
-    const onResponse = vi.fn()
-    const modal = new Modal({ onResponse })
+    const onPaymentSuccess = vi.fn()
+    const modal = new Modal({ onPaymentSuccess })
     modal.open('https://example.com/pay')
     modal.close()
 
@@ -416,7 +496,7 @@ describe('Modal', () => {
       }),
     )
 
-    expect(onResponse).not.toHaveBeenCalled()
+    expect(onPaymentSuccess).not.toHaveBeenCalled()
     vi.useRealTimers()
   })
 })

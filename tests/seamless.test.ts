@@ -76,10 +76,10 @@ describe('CinetPaySeamless', () => {
     })
 
     it('passes callbacks to modal', () => {
-      const onResponse = vi.fn()
+      const onPaymentSuccess = vi.fn()
       CinetPaySeamless.open({
         paymentToken: 'valid-test-payment-token-abc123',
-        onResponse,
+        onPaymentSuccess,
       })
 
       window.dispatchEvent(
@@ -89,7 +89,7 @@ describe('CinetPaySeamless', () => {
         }),
       )
 
-      expect(onResponse).toHaveBeenCalled()
+      expect(onPaymentSuccess).toHaveBeenCalled()
     })
   })
 

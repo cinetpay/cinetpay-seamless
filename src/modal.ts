@@ -1,8 +1,28 @@
 import { STYLES } from './styles'
-import type { PaymentResponse, PaymentError } from './types'
+import type { PaymentResponse, PaymentError, PaymentStatus } from './types'
 
 /** @internal Chemin SVG de l'icône de fermeture (croix) */
 const CLOSE_ICON_PATH = 'M2,2 L14,14 M14,2 L2,14'
+
+/** @internal Options du constructeur Modal */
+interface ModalOptions {
+  /** Thème visuel : `'light'` (défaut) ou `'dark'` */
+  theme?: 'light' | 'dark'
+  /** Afficher l'écran de résultat puis permettre la fermeture (défaut: `true`) */
+  closeAfterResponse?: boolean
+  /** Callback : iframe chargée, passerelle visible */
+  onReady?: () => void
+  /** Callback : paiement accepté */
+  onPaymentSuccess?: (data: PaymentResponse) => void
+  /** Callback : paiement refusé */
+  onPaymentFailed?: (data: PaymentResponse) => void
+  /** Callback : paiement en attente (PENDING, INITIATED, etc.) */
+  onPaymentPending?: (data: PaymentResponse) => void
+  /** Callback : modal fermé */
+  onClose?: (data: { status: string }) => void
+  /** Callback : erreur technique */
+  onError?: (error: PaymentError) => void
+}
 
 /**
  * Modal de paiement CinetPay.
@@ -22,11 +42,12 @@ export class Modal {
   private iframe: HTMLIFrameElement | null = null
   /** Élément `<style>` injecté dans le `<head>` */
   private styleEl: HTMLStyleElement | null = null
-  /** Callback appelé quand le modal est fermé */
+  /** Callbacks */
+  private onReadyCallback?: () => void
+  private onPaymentSuccessCallback?: (data: PaymentResponse) => void
+  private onPaymentFailedCallback?: (data: PaymentResponse) => void
+  private onPaymentPendingCallback?: (data: PaymentResponse) => void
   private onCloseCallback?: (data: { status: string }) => void
-  /** Callback appelé quand le paiement est terminé (succès ou échec) */
-  private onResponseCallback?: (data: PaymentResponse) => void
-  /** Callback appelé en cas d'erreur */
   private onErrorCallback?: (error: PaymentError) => void
   /** Fermer automatiquement le modal après affichage du résultat */
   private closeAfterResponse: boolean
@@ -41,30 +62,20 @@ export class Modal {
    * Crée une nouvelle instance de modal.
    *
    * @param options - Options de configuration du modal
-   * @param options.theme - Thème visuel : `'light'` (défaut) ou `'dark'`
-   * @param options.closeAfterResponse - Afficher l'écran de résultat puis permettre la fermeture (défaut: `true`)
-   * @param options.onResponse - Callback appelé quand le paiement est terminé (ACCEPTED ou REFUSED)
-   * @param options.onClose - Callback appelé quand le modal est fermé (après animation)
-   * @param options.onError - Callback appelé en cas d'erreur (timeout, erreur réseau, etc.)
    */
-  constructor(options: {
-    theme?: 'light' | 'dark'
-    closeAfterResponse?: boolean
-    onResponse?: (data: PaymentResponse) => void
-    onClose?: (data: { status: string }) => void
-    onError?: (error: PaymentError) => void
-  }) {
+  constructor(options: ModalOptions) {
     this.theme = options.theme ?? 'light'
     this.closeAfterResponse = options.closeAfterResponse ?? true
-    this.onResponseCallback = options.onResponse
+    this.onReadyCallback = options.onReady
+    this.onPaymentSuccessCallback = options.onPaymentSuccess
+    this.onPaymentFailedCallback = options.onPaymentFailed
+    this.onPaymentPendingCallback = options.onPaymentPending
     this.onCloseCallback = options.onClose
     this.onErrorCallback = options.onError
   }
 
   /**
    * Ouvre le modal avec l'URL de la passerelle de paiement.
-   * Injecte les styles CSS, crée l'overlay + iframe, et commence
-   * à écouter les messages `postMessage` de l'iframe CinetPay.
    *
    * @param paymentUrl - URL complète de la page de checkout CinetPay
    */
@@ -84,7 +95,7 @@ export class Modal {
   /**
    * Ferme le modal avec une animation de 300ms.
    * Nettoie l'overlay, l'iframe, le listener postMessage,
-   * et restaure le scroll du body. Appelle `onClose` après la fermeture.
+   * et restaure le scroll du body.
    */
   close(): void {
     if (!this.overlay) return
@@ -107,9 +118,35 @@ export class Modal {
   }
 
   /**
-   * Affiche l'écran de résultat (succès ou échec) dans le modal,
-   * remplaçant le contenu de l'iframe. Détecte la langue de la page
-   * pour afficher les messages en français ou anglais.
+   * Dispatche la réponse de paiement vers le bon callback selon le statut.
+   *
+   * @param response - Réponse de paiement normalisée
+   */
+  private dispatchResponse(response: PaymentResponse): void {
+    this.lastStatus = response.status
+
+    switch (response.status) {
+      case 'ACCEPTED':
+        this.onPaymentSuccessCallback?.(response)
+        break
+      case 'REFUSED':
+        this.onPaymentFailedCallback?.(response)
+        break
+      case 'PENDING':
+      case 'INITIATED':
+      case 'EXPIRED':
+      default:
+        this.onPaymentPendingCallback?.(response)
+        break
+    }
+
+    if (this.closeAfterResponse && (response.status === 'ACCEPTED' || response.status === 'REFUSED')) {
+      this.showResult(response)
+    }
+  }
+
+  /**
+   * Affiche l'écran de résultat (succès ou échec) dans le modal.
    *
    * @param response - Réponse de paiement reçue de CinetPay
    */
@@ -155,10 +192,7 @@ export class Modal {
     content.appendChild(result)
   }
 
-  /**
-   * Injecte les styles CSS du modal dans le `<head>` de la page.
-   * Ne duplique pas si déjà présent (vérifie par ID).
-   */
+  /** Injecte les styles CSS dans le `<head>` (une seule fois). */
   private injectStyles(): void {
     if (document.getElementById('cp-seamless-styles')) return
     this.styleEl = document.createElement('style')
@@ -167,10 +201,7 @@ export class Modal {
     document.head.appendChild(this.styleEl)
   }
 
-  /**
-   * Crée l'overlay semi-transparent qui couvre tout l'écran.
-   * Un clic sur l'overlay (hors du modal) ferme le paiement.
-   */
+  /** Crée l'overlay semi-transparent. */
   private createOverlay(): void {
     this.overlay = document.createElement('div')
     this.overlay.className = 'cp-seamless-overlay'
@@ -181,16 +212,15 @@ export class Modal {
   }
 
   /**
-   * Crée la structure DOM du modal : header (logo + bouton fermer),
-   * contenu (spinner + iframe sandboxé), et footer.
+   * Crée la structure DOM du modal : header, contenu (iframe), footer.
    *
-   * @param paymentUrl - URL de la page de checkout CinetPay à charger dans l'iframe
+   * @param paymentUrl - URL de la page de checkout CinetPay
    */
   private createModal(paymentUrl: string): void {
     const modal = document.createElement('div')
     modal.className = `cp-seamless-modal ${this.theme === 'dark' ? 'cp-dark' : ''}`
 
-    // Header avec logo CinetPay et bouton fermer
+    // Header
     const header = document.createElement('div')
     header.className = 'cp-seamless-header'
 
@@ -240,7 +270,7 @@ export class Modal {
     header.appendChild(logoContainer)
     header.appendChild(closeBtn)
 
-    // Contenu : spinner de chargement + iframe sandboxé
+    // Content
     const content = document.createElement('div')
     content.className = 'cp-seamless-content'
 
@@ -263,12 +293,13 @@ export class Modal {
     this.iframe.addEventListener('load', () => {
       loading.remove()
       if (this.iframe) this.iframe.style.display = 'block'
+      this.onReadyCallback?.()
     })
 
     content.appendChild(loading)
     content.appendChild(this.iframe)
 
-    // Footer sécurité
+    // Footer
     const footer = document.createElement('div')
     footer.className = 'cp-seamless-footer'
     footer.textContent = 'Paiement sécurisé par CinetPay'
@@ -281,8 +312,6 @@ export class Modal {
 
   /**
    * Liste blanche des origines autorisées pour les messages `postMessage`.
-   * Seuls les domaines officiels CinetPay sont acceptés — protège contre
-   * les attaques par typosquatting et les messages forgés.
    */
   private static readonly ALLOWED_ORIGINS = [
     'https://secure.cinetpay.net',
@@ -294,14 +323,8 @@ export class Modal {
   ]
 
   /**
-   * Écoute les messages `postMessage` envoyés par l'iframe CinetPay.
-   *
-   * Gère trois types de messages :
-   * - **Réponse de paiement** (`status: 'ACCEPTED' | 'REFUSED'`) → appelle `onResponse`
-   * - **Erreur** (`code: 'ERROR'`) → appelle `onError`
-   * - **Fermeture** (`action: 'CLOSE'`) → ferme le modal
-   *
-   * L'origine du message est vérifiée strictement contre {@link ALLOWED_ORIGINS}.
+   * Écoute les messages `postMessage` de l'iframe CinetPay.
+   * Dispatche vers le bon callback selon le statut.
    */
   private listenForMessages(): void {
     this.messageHandler = (event: MessageEvent) => {
@@ -311,13 +334,13 @@ export class Modal {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
         if (!data || typeof data !== 'object') return
 
-        // Réponse de paiement (succès ou échec)
-        if (data.status === 'ACCEPTED' || data.status === 'REFUSED') {
-          this.lastStatus = data.status
+        // Réponse de paiement
+        if (data.status) {
+          const status = data.status as PaymentStatus
           const response: PaymentResponse = {
             amount: data.amount ?? data.cpm_amount ?? 0,
             currency: data.currency ?? data.cpm_currency ?? '',
-            status: data.status,
+            status,
             paymentMethod: data.payment_method ?? data.cpm_payment_method ?? '',
             description: data.description ?? data.cpm_designation ?? '',
             metadata: data.metadata ?? data.cpm_custom ?? undefined,
@@ -326,11 +349,7 @@ export class Modal {
             transactionId: data.transaction_id ?? data.cpm_trans_id ?? '',
           }
 
-          this.onResponseCallback?.(response)
-
-          if (this.closeAfterResponse) {
-            this.showResult(response)
-          }
+          this.dispatchResponse(response)
         }
 
         // Erreur
