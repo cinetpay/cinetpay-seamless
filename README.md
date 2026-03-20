@@ -51,23 +51,30 @@ CinetPaySeamless.open({
 
 ### Mode Direct (sans backend)
 
-Le frontend appelle l'API CinetPay directement. Les credentials sont exposés dans le code source.
+Le frontend s'authentifie (JWT) et initialise le paiement directement via l'API v1 CinetPay.
+
+> **Attention** : les credentials (`apiKey` + `apiPassword`) sont exposés dans le code source.
+> Acceptable en sandbox, mais en production préférez le mode Backend.
 
 ```typescript
 import { CinetPaySeamless } from 'cinetpay-seamless'
 
 CinetPaySeamless.open({
   apiKey: 'sk_test_...',
-  siteId: 123456,
-  transactionId: `ORDER-${Date.now()}`,
+  apiPassword: 'your_password',
+  country: 'CI',
+  merchantTransactionId: `ORDER-${Date.now()}`,
   amount: 5000,
   currency: 'XOF',
-  description: 'Achat en ligne',
+  designation: 'Achat en ligne',
+  clientEmail: 'jean@email.com',
+  clientFirstName: 'Jean',
+  clientLastName: 'Dupont',
+  clientPhoneNumber: '+2250707000000',
   notifyUrl: 'https://monsite.com/webhook',
-  channels: 'ALL',
-  customerName: 'Jean Dupont',
-  customerEmail: 'jean@email.com',
-  customerPhoneNumber: '+2250707000000',
+  successUrl: 'https://monsite.com/success',
+  failedUrl: 'https://monsite.com/failed',
+  channel: 'PUSH',
   onResponse: (data) => {
     console.log(data.status, data.amount, data.currency)
   },
@@ -85,12 +92,18 @@ CinetPaySeamless.open({
   document.getElementById('pay-btn').addEventListener('click', function() {
     CinetPaySeamless.open({
       apiKey: 'sk_test_...',
-      siteId: 123456,
-      transactionId: 'ORDER-' + Date.now(),
+      apiPassword: 'your_password',
+      country: 'CI',
+      merchantTransactionId: 'ORDER-' + Date.now(),
       amount: 1000,
       currency: 'XOF',
-      description: 'Achat',
+      designation: 'Achat',
+      clientEmail: 'client@email.com',
+      clientFirstName: 'Jean',
+      clientLastName: 'Dupont',
       notifyUrl: 'https://monsite.com/webhook',
+      successUrl: 'https://monsite.com/success',
+      failedUrl: 'https://monsite.com/failed',
       onResponse: function(data) {
         alert(data.status === 'ACCEPTED' ? 'Merci !' : 'Echec')
       },
@@ -127,17 +140,21 @@ Ouvre le modal de paiement.
 | Option | Type | Required | Description |
 |---|---|---|---|
 | `apiKey` | `string` | Oui | Clé API CinetPay (`sk_test_...` ou `sk_live_...`) |
-| `siteId` | `number` | Oui | Identifiant du site CinetPay |
-| `transactionId` | `string` | Oui | Identifiant unique de la transaction |
-| `amount` | `number` | Oui | Montant (entier, min: 100) |
+| `apiPassword` | `string` | Oui | Mot de passe API CinetPay |
+| `country` | `string` | Oui | Code pays ISO (ex: CI, SN, CM) |
+| `merchantTransactionId` | `string` | Oui | Identifiant unique de la transaction (max 30 chars) |
+| `amount` | `number` | Oui | Montant (entier, min: 100, max: 2 500 000) |
 | `currency` | `string` | Oui | Devise : XOF, XAF, GNF, CDF, USD |
-| `description` | `string` | Oui | Description du paiement |
+| `designation` | `string` | Oui | Libellé du paiement |
+| `clientEmail` | `string` | Oui | Email du client |
+| `clientFirstName` | `string` | Oui | Prénom du client |
+| `clientLastName` | `string` | Oui | Nom du client |
 | `notifyUrl` | `string` | Oui | URL de webhook |
-| `channels` | `string` | Non | `ALL`, `MOBILE_MONEY`, `CREDIT_CARD`, `WALLET` |
-| `metadata` | `string` | Non | Données personnalisées |
-| `customerName` | `string` | Non | Nom du client |
-| `customerEmail` | `string` | Non | Email du client |
-| `customerPhoneNumber` | `string` | Non | Téléphone (format international) |
+| `successUrl` | `string` | Oui | URL de redirection après succès |
+| `failedUrl` | `string` | Oui | URL de redirection après échec |
+| `channel` | `string` | Non | `PUSH`, `OTP`, `QRCODE` (défaut: PUSH) |
+| `paymentMethod` | `string` | Non | Opérateur spécifique (ex: OM_CI, WAVE_SN) |
+| `clientPhoneNumber` | `string` | Non | Téléphone (format international) |
 
 ### `CinetPaySeamless.close()`
 
@@ -249,17 +266,21 @@ Ferme le modal programmatiquement.
 
       CinetPaySeamless.open({
         // Mode Direct — en production, utilisez le mode Backend
-        apiKey: 'sk_test_JH2kpCc8xnCcvnCvPRpczFNe',
-        siteId: 105898,
-        transactionId: 'CMD-' + Date.now(),
+        apiKey: 'sk_test_...',
+        apiPassword: 'your_password',
+        country: 'CI',
+        merchantTransactionId: 'CMD-' + Date.now(),
         amount: parseInt(document.getElementById('amount').value),
         currency: document.getElementById('currency').value,
-        description: document.getElementById('designation').value,
+        designation: document.getElementById('designation').value,
+        clientFirstName: document.getElementById('firstName').value,
+        clientLastName: document.getElementById('lastName').value,
+        clientEmail: document.getElementById('email').value,
+        clientPhoneNumber: document.getElementById('phone').value,
         notifyUrl: 'https://votre-site.com/webhook',
-        customerName: document.getElementById('firstName').value + ' ' + document.getElementById('lastName').value,
-        customerEmail: document.getElementById('email').value,
-        customerPhoneNumber: document.getElementById('phone').value,
-        channels: 'ALL',
+        successUrl: 'https://votre-site.com/success',
+        failedUrl: 'https://votre-site.com/failed',
+        channel: 'PUSH',
 
         onResponse: function(data) {
           if (data.status === 'ACCEPTED') {

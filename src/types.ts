@@ -1,42 +1,40 @@
-/** Configuration du mode Direct (sans backend) */
+/** Configuration du mode Direct (sans backend) — utilise api_key + api_password pour l'auth JWT */
 export interface DirectConfig {
   /** Clé API CinetPay (sk_test_... ou sk_live_...) */
   apiKey: string
-  /** Identifiant du site/service CinetPay */
-  siteId: number
-  /** Identifiant unique de la transaction */
-  transactionId: string
-  /** Montant du paiement (entier, min: 100) */
+  /** Mot de passe API CinetPay */
+  apiPassword: string
+  /** Code pays ISO (ex: CI, SN, CM) — détermine les credentials et l'environnement */
+  country: string
+  /** Identifiant unique de la transaction côté marchand (max 30 caractères) */
+  merchantTransactionId: string
+  /** Montant du paiement (entier, min: 100, max: 2 500 000) */
   amount: number
   /** Devise : XOF, XAF, GNF, CDF ou USD */
   currency: string
-  /** Description du paiement */
-  description: string
-  /** URL de notification webhook */
+  /** Libellé du paiement affiché au client */
+  designation: string
+  /** URL de notification webhook pour le statut final */
   notifyUrl: string
-  /** Canaux de paiement : ALL, MOBILE_MONEY, CREDIT_CARD, WALLET */
-  channels?: string
-  /** Métadonnées personnalisées (récupérées dans le webhook) */
-  metadata?: string
-  /** Nom du client */
-  customerName?: string
-  /** Prénom du client */
-  customerSurname?: string
+  /** URL de redirection après un paiement réussi */
+  successUrl: string
+  /** URL de redirection après un paiement échoué */
+  failedUrl: string
+  /** Canal de paiement : PUSH, OTP ou QRCODE */
+  channel?: string
+  /** Méthode de paiement spécifique (ex: OM_CI, WAVE_SN). Si omis, toutes les méthodes du pays sont proposées. */
+  paymentMethod?: string
   /** Email du client */
-  customerEmail?: string
-  /** Numéro de téléphone du client */
-  customerPhoneNumber?: string
-  /** Adresse du client */
-  customerAddress?: string
-  /** Ville du client */
-  customerCity?: string
-  /** Pays du client (code ISO) */
-  customerCountry?: string
-  /** Code postal (cartes bancaires) */
-  customerZipCode?: string
+  clientEmail: string
+  /** Prénom du client (2-255 caractères) */
+  clientFirstName: string
+  /** Nom du client (2-255 caractères) */
+  clientLastName: string
+  /** Numéro de téléphone du client au format international */
+  clientPhoneNumber?: string
 }
 
-/** Configuration du mode Backend (avec paymentToken) */
+/** Configuration du mode Backend (avec paymentToken obtenu via cinetpay-js) */
 export interface BackendConfig {
   /** Token de paiement obtenu via le SDK backend cinetpay-js */
   paymentToken: string
@@ -93,7 +91,7 @@ export interface PaymentError {
 
 /** Vérifie si la config est en mode Direct */
 export function isDirectConfig(config: SeamlessConfig): config is CommonConfig & DirectConfig {
-  return 'apiKey' in config
+  return 'apiKey' in config && 'apiPassword' in config
 }
 
 /** Vérifie si la config est en mode Backend */

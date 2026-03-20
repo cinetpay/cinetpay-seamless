@@ -3,17 +3,28 @@ import { isDirectConfig, isBackendConfig } from '../src/types'
 import type { SeamlessConfig } from '../src/types'
 
 describe('isDirectConfig', () => {
-  it('returns true when apiKey is present', () => {
+  it('returns true when apiKey and apiPassword are present', () => {
     const config = {
       apiKey: 'sk_test_abc',
-      siteId: 123,
-      transactionId: 'TX-1',
+      apiPassword: 'password',
+      country: 'CI',
+      merchantTransactionId: 'TX-1',
       amount: 500,
       currency: 'XOF',
-      description: 'Test',
+      designation: 'Test',
       notifyUrl: 'https://example.com/webhook',
+      successUrl: 'https://example.com/success',
+      failedUrl: 'https://example.com/failed',
+      clientEmail: 'test@test.com',
+      clientFirstName: 'Jean',
+      clientLastName: 'Dupont',
     } as SeamlessConfig
     expect(isDirectConfig(config)).toBe(true)
+  })
+
+  it('returns false when only apiKey without apiPassword', () => {
+    const config = { apiKey: 'sk_test_abc' } as unknown as SeamlessConfig
+    expect(isDirectConfig(config)).toBe(false)
   })
 
   it('returns false when paymentToken is present', () => {
@@ -31,12 +42,18 @@ describe('isBackendConfig', () => {
   it('returns false when apiKey is present', () => {
     const config = {
       apiKey: 'sk_test_abc',
-      siteId: 123,
-      transactionId: 'TX-1',
+      apiPassword: 'pass',
+      country: 'CI',
+      merchantTransactionId: 'TX-1',
       amount: 500,
       currency: 'XOF',
-      description: 'Test',
+      designation: 'Test',
       notifyUrl: 'https://example.com/webhook',
+      successUrl: 'https://example.com/success',
+      failedUrl: 'https://example.com/failed',
+      clientEmail: 'test@test.com',
+      clientFirstName: 'Jean',
+      clientLastName: 'Dupont',
     } as SeamlessConfig
     expect(isBackendConfig(config)).toBe(false)
   })

@@ -1,6 +1,49 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { CinetPaySeamless } from '../src/index'
 
+const DIRECT_CONFIG_BASE = {
+  apiKey: 'sk_test_abc',
+  apiPassword: 'test_password',
+  country: 'CI',
+  merchantTransactionId: 'TX-1',
+  amount: 500,
+  currency: 'XOF',
+  designation: 'Test payment',
+  notifyUrl: 'https://example.com/webhook',
+  successUrl: 'https://example.com/success',
+  failedUrl: 'https://example.com/failed',
+  clientEmail: 'test@test.com',
+  clientFirstName: 'Jean',
+  clientLastName: 'Dupont',
+}
+
+const AUTH_RESPONSE = {
+  code: 200,
+  status: 'OK',
+  access_token: 'jwt-token-abc',
+  token_type: 'bearer',
+  expires_in: 86400,
+}
+
+const PAYMENT_RESPONSE = {
+  code: 200,
+  status: 'OK',
+  payment_token: 'pay-token-xyz',
+  payment_url: 'https://secure.cinetpay.net/checkout/pay-token-xyz',
+  notify_token: 'notify-abc',
+  transaction_id: 'tx-123',
+  merchant_transaction_id: 'TX-1',
+}
+
+function createMockFetch(authResponse: unknown, paymentResponse: unknown) {
+  let callCount = 0
+  return vi.fn(async () => {
+    callCount++
+    const data = callCount === 1 ? authResponse : paymentResponse
+    return { json: () => Promise.resolve(data) }
+  })
+}
+
 describe('CinetPaySeamless', () => {
   beforeEach(() => {
     document.body.textContent = ''
@@ -34,26 +77,15 @@ describe('CinetPaySeamless', () => {
 
     it('passes callbacks to modal', () => {
       const onResponse = vi.fn()
-      const onClose = vi.fn()
-      const onError = vi.fn()
-
       CinetPaySeamless.open({
         paymentToken: 'token',
         onResponse,
-        onClose,
-        onError,
       })
 
-      // Simulate payment response
       window.dispatchEvent(
         new MessageEvent('message', {
           origin: 'https://secure.cinetpay.net',
-          data: {
-            status: 'ACCEPTED',
-            amount: 500,
-            currency: 'XOF',
-            transaction_id: 'TX-1',
-          },
+          data: { status: 'ACCEPTED', amount: 500, currency: 'XOF', transaction_id: 'TX-1' },
         }),
       )
 
@@ -61,125 +93,110 @@ describe('CinetPaySeamless', () => {
     })
   })
 
-  describe('Mode Direct', () => {
-    it('calls checkout API and opens modal on success', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        json: () =>
-          Promise.resolve({
-            code: '201',
-            data: { payment_url: 'https://secure.cinetpay.net/checkout/direct-token' },
-          }),
-      })
+  describe('Mode Direct (API v1)', () => {
+    it('authenticates then initializes payment', async () => {
+      const mockFetch = createMockFetch(AUTH_RESPONSE, PAYMENT_RESPONSE)
+      globalThis.fetch = mockFetch as unknown as typeof fetch
+
+      await CinetPaySeamless.open(DIRECT_CONFIG_BASE)
+
+      // First call: auth
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      const authCall = mockFetch.mock.calls[0]
+      expect(authCall[0]).toContain('/v1/oauth/login')
+      const authBody = JSON.parse(authCall[1].body)
+      expect(authBody.api_key).toBe('sk_test_abc')
+      expect(authBody.api_password).toBe('test_password')
+
+      // Second call: payment init with Bearer token
+      const payCall = mockFetch.mock.calls[1]
+      expect(payCall[0]).toContain('/v1/payment')
+      expect(payCall[1].headers.Authorization).toBe('Bearer jwt-token-abc')
+    })
+
+    it('sends correct payment body', async () => {
+      const mockFetch = createMockFetch(AUTH_RESPONSE, PAYMENT_RESPONSE)
       globalThis.fetch = mockFetch as unknown as typeof fetch
 
       await CinetPaySeamless.open({
-        apiKey: 'sk_test_abc',
-        siteId: 123456,
-        transactionId: 'TX-DIRECT',
-        amount: 1000,
-        currency: 'XOF',
-        description: 'Test direct',
-        notifyUrl: 'https://example.com/webhook',
+        ...DIRECT_CONFIG_BASE,
+        clientPhoneNumber: '+2250707000000',
+        paymentMethod: 'OM_CI',
       })
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/v2/payment'),
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
+      const payCall = mockFetch.mock.calls[1]
+      const body = JSON.parse(payCall[1].body)
+      expect(body.currency).toBe('XOF')
+      expect(body.merchant_transaction_id).toBe('TX-1')
+      expect(body.amount).toBe(500)
+      expect(body.designation).toBe('Test payment')
+      expect(body.client_email).toBe('test@test.com')
+      expect(body.client_first_name).toBe('Jean')
+      expect(body.client_last_name).toBe('Dupont')
+      expect(body.success_url).toBe('https://example.com/success')
+      expect(body.failed_url).toBe('https://example.com/failed')
+      expect(body.notify_url).toBe('https://example.com/webhook')
+      expect(body.client_phone_number).toBe('+2250707000000')
+      expect(body.payment_method).toBe('OM_CI')
+    })
+
+    it('opens modal with payment URL', async () => {
+      globalThis.fetch = createMockFetch(AUTH_RESPONSE, PAYMENT_RESPONSE) as unknown as typeof fetch
+
+      await CinetPaySeamless.open(DIRECT_CONFIG_BASE)
 
       const iframe = document.querySelector('iframe')
-      expect(iframe?.src).toBe('https://secure.cinetpay.net/checkout/direct-token')
+      expect(iframe?.src).toBe('https://secure.cinetpay.net/checkout/pay-token-xyz')
     })
 
-    it('sends correct body to checkout API', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        json: () =>
-          Promise.resolve({
-            code: '201',
-            data: { payment_url: 'https://secure.cinetpay.net/checkout/x' },
-          }),
-      })
-      globalThis.fetch = mockFetch as unknown as typeof fetch
-
-      await CinetPaySeamless.open({
-        apiKey: 'sk_test_key',
-        siteId: 999,
-        transactionId: 'TX-BODY',
-        amount: 2000,
-        currency: 'XAF',
-        description: 'Body test',
-        notifyUrl: 'https://example.com/notify',
-        channels: 'MOBILE_MONEY',
-        customerName: 'Jean',
-        customerEmail: 'jean@test.com',
-        customerPhoneNumber: '+2250707000000',
-      })
-
-      const call = mockFetch.mock.calls[0]
-      const body = JSON.parse(call[1].body)
-
-      expect(body.apikey).toBe('sk_test_key')
-      expect(body.site_id).toBe(999)
-      expect(body.transaction_id).toBe('TX-BODY')
-      expect(body.amount).toBe(2000)
-      expect(body.currency).toBe('XAF')
-      expect(body.channels).toBe('MOBILE_MONEY')
-      expect(body.customer_name).toBe('Jean')
-      expect(body.customer_email).toBe('jean@test.com')
-      expect(body.customer_phone_number).toBe('+2250707000000')
+    it('uses sandbox URL for sk_test_ keys', () => {
+      const url = CinetPaySeamless.resolveBaseUrl('sk_test_abc')
+      expect(url).toBe('https://api.cinetpay.net')
     })
 
-    it('calls onError when checkout API fails', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        json: () =>
-          Promise.resolve({
-            code: '401',
-            message: 'Invalid API key',
-          }),
-      })
-      globalThis.fetch = mockFetch as unknown as typeof fetch
+    it('uses production URL for sk_live_ keys', () => {
+      const url = CinetPaySeamless.resolveBaseUrl('sk_live_abc')
+      expect(url).toBe('https://api.cinetpay.co')
+    })
+
+    it('calls onError when auth fails', async () => {
+      globalThis.fetch = vi.fn(async () => ({
+        json: () => Promise.resolve({ code: 1005, status: 'INVALID_CREDENTIALS', description: 'Bad credentials' }),
+      })) as unknown as typeof fetch
 
       const onError = vi.fn()
-
-      await CinetPaySeamless.open({
-        apiKey: 'sk_test_bad',
-        siteId: 123,
-        transactionId: 'TX-FAIL',
-        amount: 500,
-        currency: 'XOF',
-        description: 'Fail test',
-        notifyUrl: 'https://example.com/webhook',
-        onError,
-      })
+      await CinetPaySeamless.open({ ...DIRECT_CONFIG_BASE, onError })
 
       expect(onError).toHaveBeenCalledWith({
         code: 'INIT_FAILED',
-        message: 'Invalid API key',
+        message: 'Bad credentials',
       })
 
-      // Modal should NOT be opened
-      const overlay = document.querySelector('.cp-seamless-overlay')
-      expect(overlay).toBeNull()
+      expect(document.querySelector('.cp-seamless-overlay')).toBeNull()
+    })
+
+    it('calls onError when payment init fails', async () => {
+      let callCount = 0
+      globalThis.fetch = vi.fn(async () => {
+        callCount++
+        if (callCount === 1) return { json: () => Promise.resolve(AUTH_RESPONSE) }
+        return { json: () => Promise.resolve({ code: 1004, status: 'INVALID_PARAMS', description: 'Amount too low' }) }
+      }) as unknown as typeof fetch
+
+      const onError = vi.fn()
+      await CinetPaySeamless.open({ ...DIRECT_CONFIG_BASE, onError })
+
+      expect(onError).toHaveBeenCalledWith({
+        code: 'INIT_FAILED',
+        message: 'Amount too low',
+      })
     })
 
     it('calls onError when fetch throws', async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error')) as unknown as typeof fetch
 
       const onError = vi.fn()
-
-      await CinetPaySeamless.open({
-        apiKey: 'sk_test_x',
-        siteId: 1,
-        transactionId: 'TX-NET',
-        amount: 500,
-        currency: 'XOF',
-        description: 'Net test',
-        notifyUrl: 'https://example.com/webhook',
-        onError,
-      })
+      await CinetPaySeamless.open({ ...DIRECT_CONFIG_BASE, onError })
 
       expect(onError).toHaveBeenCalledWith({
         code: 'INIT_FAILED',
@@ -187,28 +204,16 @@ describe('CinetPaySeamless', () => {
       })
     })
 
-    it('defaults channels to ALL', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        json: () =>
-          Promise.resolve({
-            code: '201',
-            data: { payment_url: 'https://secure.cinetpay.net/checkout/x' },
-          }),
-      })
-      globalThis.fetch = mockFetch as unknown as typeof fetch
+    it('falls back to payment_token URL when no payment_url', async () => {
+      const paymentWithoutUrl = { ...PAYMENT_RESPONSE }
+      delete (paymentWithoutUrl as Record<string, unknown>).payment_url
 
-      await CinetPaySeamless.open({
-        apiKey: 'sk_test_x',
-        siteId: 1,
-        transactionId: 'TX-CH',
-        amount: 500,
-        currency: 'XOF',
-        description: 'Channel test',
-        notifyUrl: 'https://example.com/webhook',
-      })
+      globalThis.fetch = createMockFetch(AUTH_RESPONSE, paymentWithoutUrl) as unknown as typeof fetch
 
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body)
-      expect(body.channels).toBe('ALL')
+      await CinetPaySeamless.open(DIRECT_CONFIG_BASE)
+
+      const iframe = document.querySelector('iframe')
+      expect(iframe?.src).toBe('https://secure.cinetpay.net/checkout/pay-token-xyz')
     })
   })
 
@@ -231,10 +236,16 @@ describe('CinetPaySeamless', () => {
   })
 
   describe('Invalid config', () => {
-    it('throws on invalid config (no paymentToken nor apiKey)', async () => {
+    it('throws on invalid config', async () => {
       await expect(
         CinetPaySeamless.open({} as any),
       ).rejects.toThrow('Invalid config')
+    })
+
+    it('error message mentions apiKey + apiPassword', async () => {
+      await expect(
+        CinetPaySeamless.open({} as any),
+      ).rejects.toThrow('apiPassword')
     })
   })
 
@@ -250,13 +261,9 @@ describe('CinetPaySeamless', () => {
     it('closes previous modal before opening new one', () => {
       vi.useFakeTimers()
       CinetPaySeamless.open({ paymentToken: 'token-1' })
-      expect(document.querySelector('.cp-seamless-overlay')).not.toBeNull()
-
-      // Second open triggers close on the first (with animation delay)
       CinetPaySeamless.open({ paymentToken: 'token-2' })
       vi.advanceTimersByTime(500)
 
-      // After animation, only the second modal's iframe remains
       const iframes = document.querySelectorAll('iframe')
       const lastIframe = iframes[iframes.length - 1]
       expect(lastIframe?.src).toContain('token-2')

@@ -19,8 +19,9 @@ export type {
   PaymentError,
 }
 
-const CHECKOUT_BASE_URL_SANDBOX = 'https://api-checkout.cinetpay.com'
-const CHECKOUT_BASE_URL_PROD = 'https://api-checkout.cinetpay.com'
+const API_BASE_URL_SANDBOX = 'https://api.cinetpay.net'
+const API_BASE_URL_PROD = 'https://api.cinetpay.co'
+const API_KEY_PREFIX_TEST = 'sk_test_'
 const SECURE_BASE_URL = 'https://secure.cinetpay.net'
 
 /**
@@ -33,16 +34,22 @@ const SECURE_BASE_URL = 'https://secure.cinetpay.net'
  * CinetPaySeamless.open({ paymentToken: 'token-du-backend' })
  * ```
  *
- * **Mode Direct** — le frontend appelle l'API CinetPay directement :
+ * **Mode Direct** — le frontend s'authentifie et initialise le paiement :
  * ```typescript
  * CinetPaySeamless.open({
  *   apiKey: 'sk_test_...',
- *   siteId: 123456,
- *   transactionId: 'ORDER-001',
+ *   apiPassword: 'your_password',
+ *   country: 'CI',
+ *   merchantTransactionId: 'ORDER-001',
  *   amount: 1000,
  *   currency: 'XOF',
- *   description: 'Achat',
+ *   designation: 'Achat',
+ *   clientEmail: 'jean@email.com',
+ *   clientFirstName: 'Jean',
+ *   clientLastName: 'Dupont',
  *   notifyUrl: 'https://monsite.com/webhook',
+ *   successUrl: 'https://monsite.com/success',
+ *   failedUrl: 'https://monsite.com/failed',
  * })
  * ```
  */
@@ -55,41 +62,8 @@ export const CinetPaySeamless = {
    *
    * @param config - Configuration du paiement (mode Direct ou Backend)
    * @throws {Error} Si la configuration est invalide
-   *
-   * @example Mode Backend
-   * ```typescript
-   * // Le backend a initialisé le paiement et retourne un paymentToken
-   * CinetPaySeamless.open({
-   *   paymentToken: 'abc123...',
-   *   onResponse: (data) => {
-   *     if (data.status === 'ACCEPTED') {
-   *       console.log('Paiement réussi !')
-   *     }
-   *   },
-   * })
-   * ```
-   *
-   * @example Mode Direct
-   * ```typescript
-   * CinetPaySeamless.open({
-   *   apiKey: 'sk_test_...',
-   *   siteId: 123456,
-   *   transactionId: `ORDER-${Date.now()}`,
-   *   amount: 5000,
-   *   currency: 'XOF',
-   *   description: 'Achat en ligne',
-   *   notifyUrl: 'https://monsite.com/webhook',
-   *   channels: 'ALL',
-   *   customerName: 'Jean Dupont',
-   *   customerEmail: 'jean@email.com',
-   *   customerPhoneNumber: '+2250707000000',
-   *   onResponse: (data) => console.log(data),
-   *   onError: (err) => console.error(err),
-   * })
-   * ```
    */
   async open(config: SeamlessConfig): Promise<void> {
-    // Fermer un modal existant
     this.close()
 
     if (isBackendConfig(config)) {
@@ -98,7 +72,7 @@ export const CinetPaySeamless = {
       await this.openDirect(config)
     } else {
       throw new Error(
-        'Invalid config: provide either "paymentToken" (backend mode) or "apiKey" + "siteId" (direct mode)',
+        'Invalid config: provide either "paymentToken" (backend mode) or "apiKey" + "apiPassword" (direct mode)',
       )
     }
   },
@@ -129,7 +103,8 @@ export const CinetPaySeamless = {
   },
 
   /**
-   * Mode Direct — initialise le paiement via l'API checkout puis ouvre le modal.
+   * Mode Direct — authentification JWT puis initialisation du paiement.
+   * Flow : POST /v1/oauth/login → POST /v1/payment → ouvre le modal avec paymentUrl.
    */
   async openDirect(config: CommonConfig & DirectConfig): Promise<void> {
     const modal = new Modal({
@@ -141,7 +116,14 @@ export const CinetPaySeamless = {
     })
 
     try {
-      const paymentUrl = await this.initializeCheckout(config)
+      const baseUrl = this.resolveBaseUrl(config.apiKey)
+
+      // 1. Authentification JWT
+      const token = await this.authenticate(baseUrl, config.apiKey, config.apiPassword)
+
+      // 2. Initialisation du paiement
+      const paymentUrl = await this.initializePayment(baseUrl, token, config)
+
       this._modal = modal
       modal.open(paymentUrl)
     } catch (error) {
@@ -153,53 +135,85 @@ export const CinetPaySeamless = {
   },
 
   /**
-   * Appelle l'API checkout CinetPay pour initialiser le paiement en mode direct.
+   * Détermine l'URL de base à partir du préfixe de la clé API.
    * @internal
    */
-  async initializeCheckout(config: DirectConfig): Promise<string> {
-    const body: Record<string, unknown> = {
-      apikey: config.apiKey,
-      site_id: config.siteId,
-      transaction_id: config.transactionId,
-      amount: config.amount,
-      currency: config.currency,
-      description: config.description,
-      notify_url: config.notifyUrl,
-      channels: config.channels ?? 'ALL',
-    }
+  resolveBaseUrl(apiKey: string): string {
+    return apiKey.startsWith(API_KEY_PREFIX_TEST) ? API_BASE_URL_SANDBOX : API_BASE_URL_PROD
+  },
 
-    if (config.metadata) body.metadata = config.metadata
-    if (config.customerName) body.customer_name = config.customerName
-    if (config.customerSurname) body.customer_surname = config.customerSurname
-    if (config.customerEmail) body.customer_email = config.customerEmail
-    if (config.customerPhoneNumber) body.customer_phone_number = config.customerPhoneNumber
-    if (config.customerAddress) body.customer_address = config.customerAddress
-    if (config.customerCity) body.customer_city = config.customerCity
-    if (config.customerCountry) body.customer_country = config.customerCountry
-    if (config.customerZipCode) body.customer_zip_code = config.customerZipCode
-
-    const response = await fetch(`${CHECKOUT_BASE_URL_SANDBOX}/v2/payment`, {
+  /**
+   * Authentification JWT via POST /v1/oauth/login.
+   * @internal
+   */
+  async authenticate(baseUrl: string, apiKey: string, apiPassword: string): Promise<string> {
+    const response = await fetch(`${baseUrl}/v1/oauth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        api_password: apiPassword,
+      }),
+    })
+
+    const data = await response.json() as Record<string, unknown>
+
+    if (data.code !== 200 || !data.access_token) {
+      throw new Error(
+        (data.description as string) ?? 'Authentication failed — check your apiKey and apiPassword',
+      )
+    }
+
+    return data.access_token as string
+  },
+
+  /**
+   * Initialisation du paiement via POST /v1/payment.
+   * @internal
+   */
+  async initializePayment(baseUrl: string, token: string, config: DirectConfig): Promise<string> {
+    const body: Record<string, unknown> = {
+      currency: config.currency,
+      merchant_transaction_id: config.merchantTransactionId,
+      amount: config.amount,
+      lang: config.channel ?? 'fr',
+      designation: config.designation,
+      client_email: config.clientEmail,
+      client_first_name: config.clientFirstName,
+      client_last_name: config.clientLastName,
+      success_url: config.successUrl,
+      failed_url: config.failedUrl,
+      notify_url: config.notifyUrl,
+      channel: config.channel ?? 'PUSH',
+    }
+
+    if (config.paymentMethod) body.payment_method = config.paymentMethod
+    if (config.clientPhoneNumber) body.client_phone_number = config.clientPhoneNumber
+
+    const response = await fetch(`${baseUrl}/v1/payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(body),
     })
 
     const data = await response.json() as Record<string, unknown>
 
-    if (data.code !== '201' && data.code !== 201) {
+    if (!data.payment_url && !data.payment_token) {
       throw new Error(
-        (data.message as string) ?? (data.description as string) ?? `Checkout initialization failed (code: ${data.code})`,
+        (data.description as string) ?? (data.status as string) ?? 'Payment initialization failed',
       )
     }
 
-    const paymentData = data.data as Record<string, unknown>
-    const paymentUrl = paymentData?.payment_url as string
-
-    if (!paymentUrl) {
-      throw new Error('No payment_url returned from checkout API')
+    // Si payment_url est retourné directement, l'utiliser
+    if (data.payment_url) {
+      return data.payment_url as string
     }
 
-    return paymentUrl
+    // Sinon construire l'URL depuis le payment_token
+    return `${SECURE_BASE_URL}/checkout/${data.payment_token as string}`
   },
 }
 
@@ -207,5 +221,3 @@ export const CinetPaySeamless = {
 if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>).CinetPaySeamless = CinetPaySeamless
 }
-
-// Pas de default export — utiliser uniquement les named exports
