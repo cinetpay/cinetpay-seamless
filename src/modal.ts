@@ -1,27 +1,22 @@
 import { STYLES } from './styles'
 import type { PaymentResponse, PaymentError, PaymentStatus } from './types'
+import { Logger } from './logger'
 
 /** @internal Chemin SVG de l'icône de fermeture (croix) */
 const CLOSE_ICON_PATH = 'M2,2 L14,14 M14,2 L2,14'
 
 /** @internal Options du constructeur Modal */
 interface ModalOptions {
-  /** Thème visuel : `'light'` (défaut) ou `'dark'` */
   theme?: 'light' | 'dark'
-  /** Afficher l'écran de résultat puis permettre la fermeture (défaut: `true`) */
   closeAfterResponse?: boolean
-  /** Callback : iframe chargée, passerelle visible */
   onReady?: () => void
-  /** Callback : paiement accepté */
   onPaymentSuccess?: (data: PaymentResponse) => void
-  /** Callback : paiement refusé */
   onPaymentFailed?: (data: PaymentResponse) => void
-  /** Callback : paiement en attente (PENDING, INITIATED, etc.) */
   onPaymentPending?: (data: PaymentResponse) => void
-  /** Callback : modal fermé */
   onClose?: (data: { status: string }) => void
-  /** Callback : erreur technique */
   onError?: (error: PaymentError) => void
+  /** Instance du logger (activé ou désactivé) */
+  logger: Logger
 }
 
 /**
@@ -57,6 +52,8 @@ export class Modal {
   private lastStatus = 'UNKNOWN'
   /** Référence au handler postMessage pour pouvoir le supprimer */
   private messageHandler: ((event: MessageEvent) => void) | null = null
+  /** Logger interne */
+  private logger: Logger
 
   /**
    * Crée une nouvelle instance de modal.
@@ -66,6 +63,7 @@ export class Modal {
   constructor(options: ModalOptions) {
     this.theme = options.theme ?? 'light'
     this.closeAfterResponse = options.closeAfterResponse ?? true
+    this.logger = options.logger
     this.onReadyCallback = options.onReady
     this.onPaymentSuccessCallback = options.onPaymentSuccess
     this.onPaymentFailedCallback = options.onPaymentFailed
@@ -80,6 +78,7 @@ export class Modal {
    * @param paymentUrl - URL complète de la page de checkout CinetPay
    */
   open(paymentUrl: string): void {
+    this.logger.debug('Opening modal', { paymentUrl })
     this.injectStyles()
     this.createOverlay()
     this.createModal(paymentUrl)
@@ -113,6 +112,7 @@ export class Modal {
         this.messageHandler = null
       }
 
+      this.logger.debug('Modal closed', { lastStatus: this.lastStatus })
       this.onCloseCallback?.({ status: this.lastStatus })
     }, 300)
   }
@@ -125,17 +125,27 @@ export class Modal {
   private dispatchResponse(response: PaymentResponse): void {
     this.lastStatus = response.status
 
+    this.logger.debug(`Payment response: ${response.status}`, {
+      amount: response.amount,
+      currency: response.currency,
+      transactionId: response.transactionId,
+      paymentMethod: response.paymentMethod,
+    })
+
     switch (response.status) {
       case 'ACCEPTED':
+        this.logger.debug('Payment accepted')
         this.onPaymentSuccessCallback?.(response)
         break
       case 'REFUSED':
+        this.logger.warn('Payment refused')
         this.onPaymentFailedCallback?.(response)
         break
       case 'PENDING':
       case 'INITIATED':
       case 'EXPIRED':
       default:
+        this.logger.debug(`Payment pending: ${response.status}`)
         this.onPaymentPendingCallback?.(response)
         break
     }
@@ -293,6 +303,7 @@ export class Modal {
     this.iframe.addEventListener('load', () => {
       loading.remove()
       if (this.iframe) this.iframe.style.display = 'block'
+      this.logger.debug('Iframe loaded — checkout ready')
       this.onReadyCallback?.()
     })
 
@@ -328,7 +339,10 @@ export class Modal {
    */
   private listenForMessages(): void {
     this.messageHandler = (event: MessageEvent) => {
-      if (!Modal.ALLOWED_ORIGINS.some((o) => event.origin === o)) return
+      if (!Modal.ALLOWED_ORIGINS.some((o) => event.origin === o)) {
+        this.logger.warn(`postMessage ignored: origin "${event.origin}" not in whitelist`)
+        return
+      }
 
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
@@ -354,10 +368,12 @@ export class Modal {
 
         // Erreur
         if (data.error || data.code === 'ERROR') {
-          this.onErrorCallback?.({
+          const err = {
             code: data.code ?? 'UNKNOWN',
             message: data.message ?? data.error ?? 'An error occurred',
-          })
+          }
+          this.logger.error('Payment error from iframe', err)
+          this.onErrorCallback?.(err)
         }
 
         // Fermeture demandée par l'iframe

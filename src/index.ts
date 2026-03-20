@@ -9,6 +9,7 @@ import type {
   PaymentStatus,
 } from './types'
 import { isDirectConfig, isBackendConfig } from './types'
+import { Logger } from './logger'
 
 // Re-export types
 export type {
@@ -119,10 +120,13 @@ export const CinetPaySeamless = {
   async open(config: SeamlessConfig): Promise<void> {
     this.close()
 
+    const logger = new Logger(config.debug ?? false)
+    logger.debug('CinetPaySeamless.open() called', { mode: isBackendConfig(config) ? 'backend' : 'direct' })
+
     if (isBackendConfig(config)) {
-      this.openWithToken(config)
+      this.openWithToken(config, logger)
     } else if (isDirectConfig(config)) {
-      await this.openDirect(config)
+      await this.openDirect(config, logger)
     } else {
       throw new Error(
         'Invalid config: provide either "paymentToken" (backend mode) or "apiKey" + "apiPassword" (direct mode)',
@@ -154,16 +158,18 @@ export const CinetPaySeamless = {
    * @param config - Configuration avec `paymentToken` et callbacks
    * @throws {Error} Si le format du `paymentToken` est invalide
    */
-  openWithToken(config: CommonConfig & BackendConfig): void {
+  openWithToken(config: CommonConfig & BackendConfig, logger: Logger): void {
     if (!/^[a-zA-Z0-9_-]{10,128}$/.test(config.paymentToken)) {
       throw new Error('Invalid paymentToken format — expected alphanumeric string (10-128 chars)')
     }
 
     const paymentUrl = `${SECURE_BASE_URL}/checkout/${config.paymentToken}`
+    logger.debug('Mode Backend — opening with paymentToken')
 
     this._modal = new Modal({
       theme: config.theme,
       closeAfterResponse: config.closeAfterResponse,
+      logger,
       onReady: config.onReady,
       onPaymentSuccess: config.onPaymentSuccess,
       onPaymentFailed: config.onPaymentFailed,
@@ -187,10 +193,11 @@ export const CinetPaySeamless = {
    *
    * @param config - Configuration avec `apiKey`, `apiPassword`, données du paiement et callbacks
    */
-  async openDirect(config: CommonConfig & DirectConfig): Promise<void> {
+  async openDirect(config: CommonConfig & DirectConfig, logger: Logger): Promise<void> {
     const modal = new Modal({
       theme: config.theme,
       closeAfterResponse: config.closeAfterResponse,
+      logger,
       onReady: config.onReady,
       onPaymentSuccess: config.onPaymentSuccess,
       onPaymentFailed: config.onPaymentFailed,
@@ -208,8 +215,13 @@ export const CinetPaySeamless = {
 
     try {
       const baseUrl = this.resolveBaseUrl(config.apiKey)
+      logger.debug('Mode Direct — authenticating...', { baseUrl })
+
       const token = await this.authenticate(baseUrl, config.apiKey, config.apiPassword)
+      logger.debug('Authenticated — initializing payment...')
+
       const paymentUrl = await this.initializePayment(baseUrl, token, config)
+      logger.debug('Payment initialized', { paymentUrl })
 
       this._modal = modal
       modal.open(paymentUrl)

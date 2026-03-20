@@ -60,6 +60,12 @@ export interface CommonConfig {
   onClose?: (data: { status: string }) => void
   /** Callback appelé en cas d'erreur technique (timeout, réseau, init échouée) */
   onError?: (error: PaymentError) => void
+  /**
+   * Active les logs de debug dans la console avec le préfixe `[CinetPay Seamless]`.
+   * Utile pour debugger l'intégration en sandbox.
+   * @default false
+   */
+  debug?: boolean
 }
 
 /** Configuration complète — mode Direct OU Backend */
