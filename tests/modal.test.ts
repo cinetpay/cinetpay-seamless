@@ -170,13 +170,19 @@ describe('Modal', () => {
     expect(document.querySelector('.cp-seamless-spinner')).not.toBeNull()
   })
 
-  it('shows CinetPay logo in header', () => {
+  it('has close button outside the modal', () => {
     const modal = new Modal({ logger: noopLogger, emitter })
     modal.open('https://example.com/pay')
 
-    const logo = document.querySelector('.cp-seamless-logo')
-    expect(logo).not.toBeNull()
-    expect(logo?.querySelector('svg')).not.toBeNull()
+    const wrapper = document.querySelector('.cp-seamless-wrapper')
+    expect(wrapper).not.toBeNull()
+
+    const closeBtn = wrapper?.querySelector('.cp-seamless-close')
+    expect(closeBtn).not.toBeNull()
+
+    // Close button is a sibling of modal, not inside it
+    const modalEl = wrapper?.querySelector('.cp-seamless-modal')
+    expect(modalEl?.querySelector('.cp-seamless-close')).toBeNull()
   })
 
   it('calls onReady when iframe loads', () => {
@@ -257,15 +263,6 @@ describe('Modal', () => {
 
     expect(onPaymentFailed).toHaveBeenCalled()
     expect(onPaymentSuccess).not.toHaveBeenCalled()
-  })
-
-  it('shows footer with security text', () => {
-    const modal = new Modal({ logger: noopLogger, emitter })
-    modal.open('https://example.com/pay')
-
-    const footer = document.querySelector('.cp-seamless-footer')
-    expect(footer).not.toBeNull()
-    expect(footer?.textContent).toContain('CinetPay')
   })
 
   it('handles postMessage ACCEPTED response', () => {

@@ -237,45 +237,17 @@ export class Modal {
    * @param paymentUrl - URL de la page de checkout CinetPay
    */
   private createModal(paymentUrl: string): void {
-    const modal = document.createElement('div')
-    modal.className = `cp-seamless-modal ${this.theme === 'dark' ? 'cp-dark' : ''}`
+    // Wrapper qui contient le bouton close + le modal
+    const wrapper = document.createElement('div')
+    wrapper.className = 'cp-seamless-wrapper'
 
-    // Header
-    const header = document.createElement('div')
-    header.className = 'cp-seamless-header'
-
-    const logoContainer = document.createElement('div')
-    logoContainer.className = 'cp-seamless-logo'
-
-    const logoSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-    logoSvg.setAttribute('viewBox', '0 0 120 28')
-    logoSvg.setAttribute('height', '28')
-    const textCinet = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-    textCinet.setAttribute('x', '0')
-    textCinet.setAttribute('y', '22')
-    textCinet.setAttribute('font-family', '-apple-system,sans-serif')
-    textCinet.setAttribute('font-size', '20')
-    textCinet.setAttribute('font-weight', '700')
-    textCinet.setAttribute('fill', '#e8530e')
-    textCinet.textContent = 'Cinet'
-    const textPay = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-    textPay.setAttribute('x', '56')
-    textPay.setAttribute('y', '22')
-    textPay.setAttribute('font-family', '-apple-system,sans-serif')
-    textPay.setAttribute('font-size', '20')
-    textPay.setAttribute('font-weight', '700')
-    textPay.setAttribute('fill', this.theme === 'dark' ? '#e0e0e0' : '#333')
-    textPay.textContent = 'Pay'
-    logoSvg.appendChild(textCinet)
-    logoSvg.appendChild(textPay)
-    logoContainer.appendChild(logoSvg)
-
+    // Close button — flottant en dehors du modal (en haut à droite)
     const closeBtn = document.createElement('button')
     closeBtn.className = 'cp-seamless-close'
     closeBtn.setAttribute('aria-label', 'Fermer')
     const closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-    closeSvg.setAttribute('width', '16')
-    closeSvg.setAttribute('height', '16')
+    closeSvg.setAttribute('width', '20')
+    closeSvg.setAttribute('height', '20')
     closeSvg.setAttribute('viewBox', '0 0 16 16')
     closeSvg.setAttribute('fill', 'none')
     closeSvg.setAttribute('stroke', 'currentColor')
@@ -287,10 +259,11 @@ export class Modal {
     closeBtn.appendChild(closeSvg)
     closeBtn.addEventListener('click', () => this.close())
 
-    header.appendChild(logoContainer)
-    header.appendChild(closeBtn)
+    // Modal
+    const modal = document.createElement('div')
+    modal.className = `cp-seamless-modal ${this.theme === 'dark' ? 'cp-dark' : ''}`
 
-    // Content
+    // Content (iframe + spinner)
     const content = document.createElement('div')
     content.className = 'cp-seamless-content'
 
@@ -321,15 +294,11 @@ export class Modal {
     content.appendChild(loading)
     content.appendChild(this.iframe)
 
-    // Footer
-    const footer = document.createElement('div')
-    footer.className = 'cp-seamless-footer'
-    footer.textContent = 'Paiement sécurisé par CinetPay'
-
-    modal.appendChild(header)
     modal.appendChild(content)
-    modal.appendChild(footer)
-    this.overlay!.appendChild(modal)
+
+    wrapper.appendChild(closeBtn)
+    wrapper.appendChild(modal)
+    this.overlay!.appendChild(wrapper)
   }
 
   /**

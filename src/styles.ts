@@ -1,17 +1,13 @@
 /**
  * Styles CSS du modal CinetPay Seamless.
  *
- * Injectés dynamiquement dans le `<head>` via un élément `<style>`
- * avec l'ID `cp-seamless-styles`. Ne sont injectés qu'une seule fois,
- * même si plusieurs modals sont ouverts successivement.
- *
  * Structure CSS :
  * - `.cp-seamless-overlay` — fond semi-transparent plein écran
- * - `.cp-seamless-modal` — conteneur principal (max 420px, centré)
- * - `.cp-seamless-header` — logo CinetPay + bouton fermer
+ * - `.cp-seamless-wrapper` — conteneur flex (close button + modal)
+ * - `.cp-seamless-close` — bouton X flottant au-dessus du modal
+ * - `.cp-seamless-modal` — conteneur du checkout (iframe)
  * - `.cp-seamless-content` — iframe + spinner de chargement
  * - `.cp-seamless-result` — écran succès/échec post-paiement
- * - `.cp-seamless-footer` — mention "Paiement sécurisé par CinetPay"
  * - `.cp-dark` — variante thème sombre
  *
  * Responsive : sur mobile (< 480px), le modal passe en plein écran.
@@ -35,22 +31,59 @@ export const STYLES = `
   opacity: 1;
 }
 
+/* Wrapper: positionne le close button au-dessus du modal */
+.cp-seamless-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.cp-seamless-overlay.cp-visible .cp-seamless-wrapper {
+  animation: cp-slide-up 0.3s ease;
+}
+
+@keyframes cp-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Close button — flottant en dehors du modal */
+.cp-seamless-close {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.cp-seamless-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Modal */
 .cp-seamless-modal {
   background: #fff;
   border-radius: 16px;
   width: 100%;
-  max-width: 420px;
-  max-height: 90vh;
+  max-height: 80vh;
   overflow: hidden;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
-  transform: translateY(20px) scale(0.95);
-  transition: transform 0.3s ease;
   display: flex;
   flex-direction: column;
-}
-
-.cp-seamless-overlay.cp-visible .cp-seamless-modal {
-  transform: translateY(0) scale(1);
 }
 
 .cp-seamless-modal.cp-dark {
@@ -58,58 +91,17 @@ export const STYLES = `
   color: #e0e0e0;
 }
 
-/* Header */
-.cp-seamless-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.cp-dark .cp-seamless-header {
-  border-bottom-color: #2a2a3e;
-}
-
-.cp-seamless-logo {
-  height: 28px;
-}
-
-.cp-seamless-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  color: #666;
-  font-size: 18px;
-  line-height: 1;
-  transition: background 0.2s;
-}
-
-.cp-seamless-close:hover {
-  background: #f5f5f5;
-}
-
-.cp-dark .cp-seamless-close {
-  color: #999;
-}
-
-.cp-dark .cp-seamless-close:hover {
-  background: #2a2a3e;
-}
-
 /* Content (iframe) */
 .cp-seamless-content {
   flex: 1;
-  min-height: 400px;
+  min-height: 500px;
   position: relative;
 }
 
 .cp-seamless-content iframe {
   width: 100%;
   height: 100%;
-  min-height: 400px;
+  min-height: 500px;
   border: none;
 }
 
@@ -223,23 +215,22 @@ export const STYLES = `
   background: #d14a0c;
 }
 
-/* Footer */
-.cp-seamless-footer {
-  padding: 12px 24px;
-  border-top: 1px solid #f0f0f0;
-  text-align: center;
-  font-size: 11px;
-  color: #999;
-}
-
-.cp-dark .cp-seamless-footer {
-  border-top-color: #2a2a3e;
-}
-
 /* Mobile */
 @media (max-width: 480px) {
-  .cp-seamless-modal {
+  .cp-seamless-wrapper {
     max-width: 100%;
+    height: 100%;
+    gap: 0;
+  }
+
+  .cp-seamless-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+  }
+
+  .cp-seamless-modal {
     max-height: 100vh;
     border-radius: 0;
     height: 100%;
