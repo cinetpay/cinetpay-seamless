@@ -14,9 +14,16 @@ export interface CheckoutOptions {
   onError?: (error: PaymentError) => void
   logger: Logger
   emitter: EventEmitter
-  popupWidth: number
-  popupHeight: number
+  size: 'sm' | 'md' | 'lg' | 'xl'
 }
+
+/** @internal Dimensions par taille */
+const POPUP_SIZES = {
+  sm: { width: 400, height: 500 },
+  md: { width: 500, height: 650 },
+  lg: { width: 600, height: 750 },
+  xl: { width: 800, height: 900 },
+} as const
 
 /** @internal Intervalle de polling pour vérifier si la popup est fermée */
 const POPUP_POLL_INTERVAL = 500
@@ -49,13 +56,11 @@ export class Checkout {
   private logger: Logger
   private emitter: EventEmitter
   private theme: 'light' | 'dark'
-  private popupWidth: number
-  private popupHeight: number
+  private size: 'sm' | 'md' | 'lg' | 'xl'
 
   constructor(options: CheckoutOptions) {
     this.theme = options.theme ?? 'light'
-    this.popupWidth = options.popupWidth
-    this.popupHeight = options.popupHeight
+    this.size = options.size
     this.logger = options.logger
     this.emitter = options.emitter
     this.onReadyCallback = options.onReady
@@ -198,8 +203,7 @@ export class Checkout {
    * Ouvre la popup centrée sur l'écran.
    */
   private openPopup(paymentUrl: string): void {
-    const width = this.popupWidth
-    const height = this.popupHeight
+    const { width, height } = POPUP_SIZES[this.size]
     const left = Math.max(0, (screen.width - width) / 2)
     const top = Math.max(0, (screen.height - height) / 2)
 

@@ -127,8 +127,7 @@ export const CinetPaySeamless = {
 
     this._checkout = new Checkout({
       theme: config.theme,
-      popupWidth: config.popupWidth ?? 500,
-      popupHeight: config.popupHeight ?? 700,
+      size: config.size ?? 'md',
       logger,
       emitter: this._emitter,
       onReady: config.onReady,
