@@ -6,14 +6,14 @@ Ouvre la passerelle de paiement CinetPay dans une popup. L'utilisateur reste sur
 
 ## Comment ça marche
 
-1. Votre **backend** initialise le paiement via le SDK `cinetpay-js` et obtient un `paymentToken`
+1. Votre **backend** initialise le paiement via l'API CinetPay (`POST /v1/payment`) et obtient un `paymentToken`
 2. Votre **frontend** passe ce token au Seamless qui ouvre la popup de paiement
 3. Le client paie dans la popup — votre backend reçoit la confirmation via webhook
 
 ```
 Frontend                          Backend                          CinetPay
 ────────                          ───────                          ────────
-1. fetch('/api/pay') ──────────►  2. client.payment.initialize()
+1. fetch('/api/pay') ──────────►  2. POST /v1/payment (API CinetPay)
                                      → paymentToken
                      ◄──────────  3. return { paymentToken }
 4. CinetPaySeamless.open({
@@ -148,7 +148,7 @@ Ouvre la popup de paiement CinetPay.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `paymentToken` | `string` | **requis** | Token obtenu via `cinetpay-js` (backend) |
+| `paymentToken` | `string` | **requis** | Token obtenu via votre backend (`POST /v1/payment`) |
 | `debug` | `boolean` | `false` | Logs console `[CinetPay Seamless]` |
 | `onReady` | `() => void` | - | Iframe chargée |
 | `onPaymentSuccess` | `(data) => void` | - | Paiement accepté |
@@ -198,7 +198,12 @@ Ferme la popup et l'overlay.
 
 ## Exemples d'intégration
 
-### Backend (cinetpay-js) + Frontend (Seamless)
+> Le Seamless a besoin d'un `paymentToken` obtenu côté serveur. Les exemples ci-dessous
+> utilisent `cinetpay-js` (Node.js), mais vous pouvez utiliser n'importe quel langage/SDK :
+> `cinetpay-laravel-sdk` (PHP), un appel API direct (Python, Go, Ruby, etc.), ou tout autre outil
+> qui appelle `POST /v1/payment` sur l'API CinetPay.
+
+### Node.js (cinetpay-js) + Frontend (Seamless)
 
 **Backend — Express :**
 ```typescript
@@ -261,6 +266,63 @@ async function pay(amount: number) {
 
   CinetPaySeamless.open({ paymentToken, debug: true })
 }
+```
+
+### PHP / Laravel (cinetpay-laravel-sdk)
+
+```php
+// routes/api.php
+Route::post('/pay', function (Request $request) {
+    $payment = CinetPay::payment()->initialize([
+        'currency' => 'XOF',
+        'merchant_transaction_id' => 'CMD-' . time(),
+        'amount' => $request->amount,
+        'lang' => 'fr',
+        'designation' => 'Commande ' . $request->orderId,
+        'client_email' => $request->email,
+        'client_first_name' => $request->firstName,
+        'client_last_name' => $request->lastName,
+        'success_url' => config('app.url') . '/success',
+        'failed_url' => config('app.url') . '/failed',
+        'notify_url' => config('app.url') . '/api/webhook',
+        'channel' => 'PUSH',
+    ], 'CI');
+
+    return response()->json(['paymentToken' => $payment->paymentToken]);
+});
+```
+
+### API directe (n'importe quel langage)
+
+```bash
+# 1. Authentification
+TOKEN=$(curl -s -X POST https://api.cinetpay.net/v1/oauth/login \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"sk_test_...","api_password":"..."}' \
+  | jq -r '.access_token')
+
+# 2. Initialisation du paiement
+PAYMENT_TOKEN=$(curl -s -X POST https://api.cinetpay.net/v1/payment \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "currency": "XOF",
+    "merchant_transaction_id": "CMD-'$(date +%s)'",
+    "amount": 5000,
+    "lang": "fr",
+    "designation": "Commande",
+    "client_email": "client@email.com",
+    "client_first_name": "Jean",
+    "client_last_name": "Dupont",
+    "success_url": "https://monsite.com/success",
+    "failed_url": "https://monsite.com/failed",
+    "notify_url": "https://monsite.com/webhook",
+    "channel": "PUSH",
+    "direct_pay": false
+  }' | jq -r '.payment_token')
+
+# 3. Passer $PAYMENT_TOKEN au frontend
+echo "paymentToken: $PAYMENT_TOKEN"
 ```
 
 ### Next.js (App Router)
@@ -561,7 +623,7 @@ Commiter le .env dans git                  Ajouter .env dans .gitignore
 **Règles importantes :**
 - Ne **jamais** utiliser des clés `sk_live_` en développement
 - Ne **jamais** mélanger des clés `sk_test_` et `sk_live_` dans le même environnement
-- Le SDK backend `cinetpay-js` détecte automatiquement l'environnement depuis le préfixe de la clé
+- Les SDKs backend (cinetpay-js, cinetpay-laravel-sdk) détectent automatiquement l'environnement depuis le préfixe de la clé
 - En cas de compromission, changez immédiatement vos clés depuis le dashboard CinetPay
 
 ### Architecture recommandée
@@ -580,9 +642,9 @@ Commiter le .env dans git                  Ajouter .env dans .gitignore
 ┌─────────────────────────────────────────────────────────────────┐
 │ BACKEND (serveur)                                               │
 │                                                                 │
-│  - cinetpay-js                                                 │
+│  - cinetpay-js, cinetpay-laravel-sdk, ou appel API direct      │
 │  - Stocke apiKey + apiPassword en variables d'environnement    │
-│  - Initialise le paiement → obtient paymentToken               │
+│  - POST /v1/payment → obtient paymentToken                     │
 │  - Reçoit les webhooks → vérifie le statut final               │
 └─────────────────────────────────────────────────────────────────┘
 ```

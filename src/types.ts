@@ -1,12 +1,9 @@
 /**
  * Configuration du SDK CinetPay Seamless.
  *
- * Le `paymentToken` est obtenu côté serveur via le SDK `cinetpay-js` :
- * ```typescript
- * // Backend (Node.js)
- * const payment = await client.payment.initialize({ ... }, 'CI')
- * // Retourner payment.paymentToken au frontend
- * ```
+ * Le `paymentToken` est obtenu côté serveur en appelant l'API CinetPay
+ * `POST /v1/payment`. Utilisez le SDK de votre choix (cinetpay-js, cinetpay-laravel-sdk,
+ * ou un appel API direct) pour initialiser le paiement et récupérer le token.
  *
  * @example
  * ```typescript
@@ -17,7 +14,7 @@
  * ```
  */
 export interface SeamlessConfig {
-  /** Token de paiement obtenu via le SDK backend `cinetpay-js` */
+  /** Token de paiement obtenu côté serveur via l'API CinetPay `POST /v1/payment` */
   paymentToken: string
   /** Langue de l'interface : fr ou en */
   lang?: 'fr' | 'en'

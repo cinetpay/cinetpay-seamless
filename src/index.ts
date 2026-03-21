@@ -25,7 +25,7 @@ const SECURE_BASE_URL = 'https://secure.cinetpay.net'
  * Affiche un overlay d'attente et ouvre la passerelle de paiement
  * CinetPay dans une popup. Le client reste sur votre page.
  *
- * Le `paymentToken` est obtenu côté serveur via le SDK `cinetpay-js` :
+ * Le `paymentToken` est obtenu côté serveur via l'API CinetPay :
  *
  * ```typescript
  * // Frontend

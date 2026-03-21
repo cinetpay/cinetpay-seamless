@@ -57,7 +57,7 @@
 
     <div class="field">
       <label>Payment Token</label>
-      <input type="text" id="paymentToken" placeholder="Token obtenu via cinetpay-js (backend)">
+      <input type="text" id="paymentToken" placeholder="Token obtenu via votre backend (POST /v1/payment)">
     </div>
     <button class="pay-btn" id="btn-pay">Ouvrir le paiement</button>
 
@@ -67,12 +67,11 @@
     </div>
 
     <div class="hint">
-      Pour obtenir un <code>paymentToken</code>, initialisez un paiement via votre backend avec
-      <code>cinetpay-js</code> :
+      Pour obtenir un <code>paymentToken</code>, initialisez un paiement via votre backend
+      en appelant l'API CinetPay <code>POST /v1/payment</code>.
       <br><br>
-      <code>const payment = await client.payment.initialize({ ... }, 'CI')</code>
-      <br>
-      <code>// payment.paymentToken → collez-le ici</code>
+      Vous pouvez utiliser <code>cinetpay-js</code> (Node.js), <code>cinetpay-laravel-sdk</code> (PHP),
+      ou un appel API direct depuis n'importe quel langage.
     </div>
 
     <div id="log"></div>
