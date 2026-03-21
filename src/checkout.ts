@@ -14,6 +14,8 @@ export interface CheckoutOptions {
   onError?: (error: PaymentError) => void
   logger: Logger
   emitter: EventEmitter
+  popupWidth: number
+  popupHeight: number
 }
 
 /** @internal Intervalle de polling pour vérifier si la popup est fermée */
@@ -47,9 +49,13 @@ export class Checkout {
   private logger: Logger
   private emitter: EventEmitter
   private theme: 'light' | 'dark'
+  private popupWidth: number
+  private popupHeight: number
 
   constructor(options: CheckoutOptions) {
     this.theme = options.theme ?? 'light'
+    this.popupWidth = options.popupWidth
+    this.popupHeight = options.popupHeight
     this.logger = options.logger
     this.emitter = options.emitter
     this.onReadyCallback = options.onReady
@@ -192,8 +198,8 @@ export class Checkout {
    * Ouvre la popup centrée sur l'écran.
    */
   private openPopup(paymentUrl: string): void {
-    const width = 500
-    const height = 700
+    const width = this.popupWidth
+    const height = this.popupHeight
     const left = Math.max(0, (screen.width - width) / 2)
     const top = Math.max(0, (screen.height - height) / 2)
 

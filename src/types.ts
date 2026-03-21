@@ -38,6 +38,16 @@ export interface SeamlessConfig {
   /** Callback : erreur technique */
   onError?: (error: PaymentError) => void
   /**
+   * Largeur de la popup en pixels.
+   * @default 500
+   */
+  popupWidth?: number
+  /**
+   * Hauteur de la popup en pixels.
+   * @default 700
+   */
+  popupHeight?: number
+  /**
    * Active les logs de debug dans la console avec le préfixe `[CinetPay Seamless]`.
    * @default false
    */
