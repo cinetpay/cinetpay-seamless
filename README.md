@@ -632,33 +632,14 @@ Commiter le .env dans git                  Ajouter .env dans .gitignore
 ### Architecture recommandée
 
 ```mermaid
-graph TD
-    subgraph "FRONTEND (navigateur)"
-        A[cinetpay-seamless]
-        A1["Reçoit uniquement le paymentToken"]
-        A2["Aucune clé API, aucun secret"]
-        A3["Ouvre la popup CinetPay"]
-    end
-
-    subgraph "BACKEND (serveur)"
-        B["cinetpay-js / cinetpay-laravel-sdk / API directe"]
-        B1["Stocke apiKey + apiPassword en .env"]
-        B2["POST /v1/payment → paymentToken"]
-        B3["Reçoit les webhooks → vérifie le statut"]
-    end
-
-    subgraph "CinetPay"
-        C[API v1]
-        D[Page checkout]
-    end
-
-    A -->|"fetch('/api/pay')"| B
-    B -->|"POST /v1/payment"| C
+flowchart LR
+    F["Frontend\ncinetpay-seamless\n(aucun secret)"] -->|"fetch /api/pay"| B["Backend\ncinetpay-js / Laravel / API directe\n(apiKey + apiPassword en .env)"]
+    B -->|"POST /v1/payment"| C["CinetPay API"]
     C -->|"paymentToken"| B
-    B -->|"{ paymentToken }"| A
-    A -->|"popup window.open"| D
-    D -->|"webhook (notifyUrl)"| B
-    D -->|"postMessage"| A
+    B -->|"paymentToken"| F
+    F -->|"popup"| D["CinetPay Checkout"]
+    D -->|"webhook"| B
+    D -->|"postMessage"| F
 ```
 
 ### Autres protections
