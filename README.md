@@ -10,18 +10,21 @@ Ouvre la passerelle de paiement CinetPay dans une popup. L'utilisateur reste sur
 2. Votre **frontend** passe ce token au Seamless qui ouvre la popup de paiement
 3. Le client paie dans la popup — votre backend reçoit la confirmation via webhook
 
-```
-Frontend                          Backend                          CinetPay
-────────                          ───────                          ────────
-1. fetch('/api/pay') ──────────►  2. POST /v1/payment (API CinetPay)
-                                     → paymentToken
-                     ◄──────────  3. return { paymentToken }
-4. CinetPaySeamless.open({
-     paymentToken
-   })
-5. Popup s'ouvre                                          6. Page checkout
-7. Client paie                                                     8. Traitement
-9. onPaymentSuccess callback      10. Webhook reçu sur notifyUrl
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend
+    participant C as CinetPay API
+
+    F->>B: 1. fetch('/api/pay')
+    B->>C: 2. POST /v1/payment
+    C-->>B: 3. paymentToken
+    B-->>F: 4. { paymentToken }
+    F->>F: 5. CinetPaySeamless.open({ paymentToken })
+    F->>C: 6. Popup → page checkout
+    Note over F,C: Le client paie dans la popup
+    C-->>B: 7. Webhook (notifyUrl)
+    C-->>F: 8. postMessage → onPaymentSuccess
 ```
 
 ## Installation
@@ -90,7 +93,7 @@ CinetPaySeamless.open({
 </script>
 ```
 
-## Event Listeners (style Stripe)
+## Event Listeners (style événementiel)
 
 En plus des callbacks dans `open()`, écoutez les événements globalement :
 
@@ -628,25 +631,34 @@ Commiter le .env dans git                  Ajouter .env dans .gitignore
 
 ### Architecture recommandée
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ FRONTEND (navigateur)                                           │
-│                                                                 │
-│  - cinetpay-seamless                                           │
-│  - Reçoit uniquement le paymentToken                           │
-│  - Aucune clé API, aucun secret                                │
-│  - Ouvre la popup CinetPay                                     │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ fetch('/api/pay')
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ BACKEND (serveur)                                               │
-│                                                                 │
-│  - cinetpay-js, cinetpay-laravel-sdk, ou appel API direct      │
-│  - Stocke apiKey + apiPassword en variables d'environnement    │
-│  - POST /v1/payment → obtient paymentToken                     │
-│  - Reçoit les webhooks → vérifie le statut final               │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph "FRONTEND (navigateur)"
+        A[cinetpay-seamless]
+        A1["Reçoit uniquement le paymentToken"]
+        A2["Aucune clé API, aucun secret"]
+        A3["Ouvre la popup CinetPay"]
+    end
+
+    subgraph "BACKEND (serveur)"
+        B["cinetpay-js / cinetpay-laravel-sdk / API directe"]
+        B1["Stocke apiKey + apiPassword en .env"]
+        B2["POST /v1/payment → paymentToken"]
+        B3["Reçoit les webhooks → vérifie le statut"]
+    end
+
+    subgraph "CinetPay"
+        C[API v1]
+        D[Page checkout]
+    end
+
+    A -->|"fetch('/api/pay')"| B
+    B -->|"POST /v1/payment"| C
+    C -->|"paymentToken"| B
+    B -->|"{ paymentToken }"| A
+    A -->|"popup window.open"| D
+    D -->|"webhook (notifyUrl)"| B
+    D -->|"postMessage"| A
 ```
 
 ### Autres protections

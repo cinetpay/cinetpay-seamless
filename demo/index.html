@@ -89,7 +89,7 @@
       el.prepend(entry)
     }
 
-    // Event listeners (style Stripe)
+    // Event listeners (style événementiel)
     CinetPaySeamless.on('ready', () => log('EVENT: ready — passerelle chargée'))
     CinetPaySeamless.on('payment.success', (data) => log('EVENT: payment.success — ' + data.amount + ' ' + data.currency))
     CinetPaySeamless.on('payment.failed', (data) => log('EVENT: payment.failed — ' + data.transactionId))

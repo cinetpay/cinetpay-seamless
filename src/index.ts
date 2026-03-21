@@ -35,7 +35,7 @@ const SECURE_BASE_URL = 'https://secure.cinetpay.net'
  * })
  * ```
  *
- * Ou avec des event listeners (style Stripe) :
+ * Ou avec des event listeners (style événementiel) :
  *
  * ```typescript
  * CinetPaySeamless.on('payment.success', (data) => { ... })
@@ -50,7 +50,7 @@ export const CinetPaySeamless = {
   _emitter: new EventEmitter(),
 
   /**
-   * Enregistre un listener d'événement (style Stripe).
+   * Enregistre un listener d'événement (style événementiel).
    *
    * @param event - Nom de l'événement
    * @param handler - Fonction appelée quand l'événement est émis

@@ -31,7 +31,7 @@ type Handler<T> = T extends void ? () => void : (data: T) => void
  * Event emitter typé pour le SDK Seamless.
  *
  * Permet d'écouter les événements de paiement avec `on()` et `off()`,
- * comme Stripe.js (`stripe.on('event', handler)`).
+ * style événementiel (`on('event', handler)`).
  *
  * @example
  * ```typescript
