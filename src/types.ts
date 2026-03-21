@@ -1,75 +1,48 @@
-/** Configuration du mode Direct (sans backend) — utilise api_key + api_password pour l'auth JWT */
-export interface DirectConfig {
-  /** Clé API CinetPay (sk_test_... ou sk_live_...) */
-  apiKey: string
-  /** Mot de passe API CinetPay */
-  apiPassword: string
-  /** Code pays ISO (ex: CI, SN, CM) — détermine les credentials et l'environnement */
-  country: string
-  /** Identifiant unique de la transaction côté marchand (max 30 caractères) */
-  merchantTransactionId: string
-  /** Montant du paiement (entier, min: 100, max: 2 500 000) */
-  amount: number
-  /** Devise : XOF, XAF, GNF, CDF ou USD */
-  currency: string
-  /** Libellé du paiement affiché au client */
-  designation: string
-  /** URL de notification webhook pour le statut final */
-  notifyUrl: string
-  /** URL de redirection après un paiement réussi */
-  successUrl: string
-  /** URL de redirection après un paiement échoué */
-  failedUrl: string
-  /** Canal de paiement : PUSH, OTP ou QRCODE */
-  channel?: string
-  /** Méthode de paiement spécifique (ex: OM_CI, WAVE_SN). Si omis, toutes les méthodes du pays sont proposées. */
-  paymentMethod?: string
-  /** Email du client */
-  clientEmail: string
-  /** Prénom du client (2-255 caractères) */
-  clientFirstName: string
-  /** Nom du client (2-255 caractères) */
-  clientLastName: string
-  /** Numéro de téléphone du client au format international */
-  clientPhoneNumber?: string
-}
-
-/** Configuration du mode Backend (avec paymentToken obtenu via cinetpay-js) */
-export interface BackendConfig {
-  /** Token de paiement obtenu via le SDK backend cinetpay-js */
+/**
+ * Configuration du SDK CinetPay Seamless.
+ *
+ * Le `paymentToken` est obtenu côté serveur via le SDK `cinetpay-js` :
+ * ```typescript
+ * // Backend (Node.js)
+ * const payment = await client.payment.initialize({ ... }, 'CI')
+ * // Retourner payment.paymentToken au frontend
+ * ```
+ *
+ * @example
+ * ```typescript
+ * CinetPaySeamless.open({
+ *   paymentToken: 'abc123...',
+ *   onPaymentSuccess: (data) => console.log('Payé !'),
+ * })
+ * ```
+ */
+export interface SeamlessConfig {
+  /** Token de paiement obtenu via le SDK backend `cinetpay-js` */
   paymentToken: string
-}
-
-/** Configuration commune aux deux modes */
-export interface CommonConfig {
   /** Langue de l'interface : fr ou en */
   lang?: 'fr' | 'en'
-  /** Fermer automatiquement le modal après la réponse */
+  /** Afficher l'écran de résultat après le paiement (défaut: true) */
   closeAfterResponse?: boolean
-  /** Thème du modal */
+  /** Thème du modal : `'light'` (défaut) ou `'dark'` */
   theme?: 'light' | 'dark'
-  /** Callback appelé quand l'iframe est chargée et la passerelle de paiement est visible */
+  /** Callback : iframe chargée, passerelle visible */
   onReady?: () => void
-  /** Callback appelé quand le paiement est accepté (statut ACCEPTED) */
+  /** Callback : paiement accepté (statut ACCEPTED) */
   onPaymentSuccess?: (data: PaymentResponse) => void
-  /** Callback appelé quand le paiement est refusé (statut REFUSED) */
+  /** Callback : paiement refusé (statut REFUSED) */
   onPaymentFailed?: (data: PaymentResponse) => void
-  /** Callback appelé quand le paiement est en attente (statut PENDING, INITIATED, etc.) */
+  /** Callback : paiement en attente (statut PENDING, INITIATED, EXPIRED) */
   onPaymentPending?: (data: PaymentResponse) => void
-  /** Callback appelé quand le modal est fermé */
+  /** Callback : modal fermé */
   onClose?: (data: { status: string }) => void
-  /** Callback appelé en cas d'erreur technique (timeout, réseau, init échouée) */
+  /** Callback : erreur technique */
   onError?: (error: PaymentError) => void
   /**
    * Active les logs de debug dans la console avec le préfixe `[CinetPay Seamless]`.
-   * Utile pour debugger l'intégration en sandbox.
    * @default false
    */
   debug?: boolean
 }
-
-/** Configuration complète — mode Direct OU Backend */
-export type SeamlessConfig = CommonConfig & (DirectConfig | BackendConfig)
 
 /** Statuts possibles d'un paiement */
 export type PaymentStatus = 'ACCEPTED' | 'REFUSED' | 'PENDING' | 'INITIATED' | 'EXPIRED' | 'UNKNOWN'
@@ -102,14 +75,4 @@ export interface PaymentError {
   code: string
   /** Message d'erreur */
   message: string
-}
-
-/** Vérifie si la config est en mode Direct */
-export function isDirectConfig(config: SeamlessConfig): config is CommonConfig & DirectConfig {
-  return 'apiKey' in config && 'apiPassword' in config
-}
-
-/** Vérifie si la config est en mode Backend */
-export function isBackendConfig(config: SeamlessConfig): config is CommonConfig & BackendConfig {
-  return 'paymentToken' in config
 }

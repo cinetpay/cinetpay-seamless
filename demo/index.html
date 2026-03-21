@@ -25,27 +25,22 @@
     }
     h1 { font-size: 24px; margin-bottom: 8px; }
     .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
-    .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 2px solid #f0f0f0; }
-    .tab {
-      padding: 12px 20px; cursor: pointer; font-weight: 600; font-size: 14px;
-      color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s;
-    }
-    .tab.active { color: #e8530e; border-bottom-color: #e8530e; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
     .field { margin-bottom: 16px; }
     label { display: block; font-weight: 500; font-size: 13px; margin-bottom: 6px; color: #555; }
-    input, select { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
-    input:focus, select:focus { outline: none; border-color: #e8530e; }
-    .row { display: flex; gap: 12px; }
-    .row .field { flex: 1; }
+    input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    input:focus { outline: none; border-color: #e8530e; }
     button.pay-btn {
       width: 100%; padding: 14px; background: #e8530e; color: #fff; border: none;
       border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px;
     }
     button.pay-btn:hover { background: #d14a0c; }
-    button.pay-btn:disabled { background: #ccc; cursor: not-allowed; }
-    .theme-toggle { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; color: #666; }
+    .options { display: flex; align-items: center; gap: 16px; margin-top: 16px; font-size: 13px; color: #666; }
+    .options label { display: inline; margin: 0; font-weight: 400; }
+    .hint {
+      margin-top: 24px; padding: 16px; background: #fff8f0; border: 1px solid #ffe0c0;
+      border-radius: 8px; font-size: 13px; color: #a05000; line-height: 1.5;
+    }
+    .hint code { background: #f0e8e0; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
     #log {
       margin-top: 24px; padding: 16px; background: #f8f8f8; border-radius: 8px;
       font-size: 12px; font-family: 'SF Mono', Menlo, monospace; max-height: 200px;
@@ -60,77 +55,26 @@
     <h1>CinetPay Seamless</h1>
     <p class="subtitle">Demo — paiement inline sans redirection</p>
 
-    <div class="tabs">
-      <div class="tab active" data-tab="direct">Mode Direct</div>
-      <div class="tab" data-tab="backend">Mode Backend</div>
+    <div class="field">
+      <label>Payment Token</label>
+      <input type="text" id="paymentToken" placeholder="Token obtenu via cinetpay-js (backend)">
     </div>
+    <button class="pay-btn" id="btn-pay">Ouvrir le paiement</button>
 
-    <!-- Mode Direct -->
-    <div class="tab-content active" id="tab-direct">
-      <div class="row">
-        <div class="field">
-          <label>API Key</label>
-          <input type="text" id="apiKey" placeholder="sk_test_..." value="sk_test_JH2kpCc8xnCcvnCvPRpczFNe">
-        </div>
-        <div class="field">
-          <label>API Password</label>
-          <input type="password" id="apiPassword" placeholder="password" value="developer">
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label>Montant</label>
-          <input type="number" id="amount" value="500">
-        </div>
-        <div class="field">
-          <label>Devise</label>
-          <select id="currency">
-            <option value="XOF" selected>XOF</option>
-            <option value="XAF">XAF</option>
-            <option value="GNF">GNF</option>
-            <option value="CDF">CDF</option>
-          </select>
-        </div>
-      </div>
-      <div class="field">
-        <label>Description</label>
-        <input type="text" id="designation" value="Test Seamless SDK">
-      </div>
-      <div class="row">
-        <div class="field">
-          <label>Prénom</label>
-          <input type="text" id="firstName" value="Jean">
-        </div>
-        <div class="field">
-          <label>Nom</label>
-          <input type="text" id="lastName" value="Dupont">
-        </div>
-      </div>
-      <div class="field">
-        <label>Email</label>
-        <input type="email" id="email" value="jean@test.com">
-      </div>
-      <div class="field">
-        <label>Téléphone</label>
-        <input type="tel" id="phone" value="+2250707070700">
-      </div>
-      <button class="pay-btn" id="btn-direct">Payer maintenant</button>
-    </div>
-
-    <!-- Mode Backend -->
-    <div class="tab-content" id="tab-backend">
-      <div class="field">
-        <label>Payment Token</label>
-        <input type="text" id="paymentToken" placeholder="Token obtenu via cinetpay-js">
-      </div>
-      <button class="pay-btn" id="btn-backend">Ouvrir le paiement</button>
-    </div>
-
-    <div class="theme-toggle">
+    <div class="options">
       <input type="checkbox" id="darkMode">
-      <label for="darkMode" style="margin: 0">Mode sombre</label>
+      <label for="darkMode">Mode sombre</label>
       <input type="checkbox" id="debugMode" checked>
-      <label for="debugMode" style="margin: 0">Debug logs</label>
+      <label for="debugMode">Debug logs</label>
+    </div>
+
+    <div class="hint">
+      Pour obtenir un <code>paymentToken</code>, initialisez un paiement via votre backend avec
+      <code>cinetpay-js</code> :
+      <br><br>
+      <code>const payment = await client.payment.initialize({ ... }, 'CI')</code>
+      <br>
+      <code>// payment.paymentToken → collez-le ici</code>
     </div>
 
     <div id="log"></div>
@@ -138,16 +82,6 @@
 
   <script type="module">
     import { CinetPaySeamless } from '../dist/cinetpay-seamless.js'
-
-    // Tabs
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
-        tab.classList.add('active')
-        document.getElementById('tab-' + tab.dataset.tab).classList.add('active')
-      })
-    })
 
     function log(msg) {
       const el = document.getElementById('log')
@@ -158,54 +92,38 @@
       el.prepend(entry)
     }
 
-    const getTheme = () => document.getElementById('darkMode').checked ? 'dark' : 'light'
-    const getDebug = () => document.getElementById('debugMode').checked
-
-    // Event listeners style Stripe
-    CinetPaySeamless.on('ready', () => log('EVENT: ready'))
+    // Event listeners (style Stripe)
+    CinetPaySeamless.on('ready', () => log('EVENT: ready — passerelle chargée'))
     CinetPaySeamless.on('payment.success', (data) => log('EVENT: payment.success — ' + data.amount + ' ' + data.currency))
     CinetPaySeamless.on('payment.failed', (data) => log('EVENT: payment.failed — ' + data.transactionId))
     CinetPaySeamless.on('payment.pending', (data) => log('EVENT: payment.pending — ' + data.status))
     CinetPaySeamless.on('close', (data) => log('EVENT: close — status: ' + data.status))
     CinetPaySeamless.on('error', (err) => log('EVENT: error — ' + err.code + ': ' + err.message))
 
-    // Mode Direct
-    document.getElementById('btn-direct').addEventListener('click', () => {
-      const txId = 'SEAMLESS-' + Date.now()
-      log('Opening payment ' + txId)
+    document.getElementById('btn-pay').addEventListener('click', () => {
+      const token = document.getElementById('paymentToken').value.trim()
+      if (!token) {
+        log('Erreur : collez un paymentToken')
+        return
+      }
 
-      CinetPaySeamless.open({
-        apiKey: document.getElementById('apiKey').value,
-        apiPassword: document.getElementById('apiPassword').value,
-        country: 'CI',
-        merchantTransactionId: txId,
-        amount: parseInt(document.getElementById('amount').value),
-        currency: document.getElementById('currency').value,
-        designation: document.getElementById('designation').value,
-        clientFirstName: document.getElementById('firstName').value,
-        clientLastName: document.getElementById('lastName').value,
-        clientEmail: document.getElementById('email').value,
-        clientPhoneNumber: document.getElementById('phone').value,
-        notifyUrl: 'https://example.com/webhook',
-        successUrl: 'https://example.com/success',
-        failedUrl: 'https://example.com/failed',
-        channel: 'PUSH',
-        theme: getTheme(),
-        debug: getDebug(),
-      })
-    })
+      log('Opening modal with token...')
 
-    // Mode Backend
-    document.getElementById('btn-backend').addEventListener('click', () => {
-      const token = document.getElementById('paymentToken').value
-      if (!token) { log('Error: paymentToken required'); return }
-      log('Opening with token...')
-
-      CinetPaySeamless.open({
-        paymentToken: token,
-        theme: getTheme(),
-        debug: getDebug(),
-      })
+      try {
+        CinetPaySeamless.open({
+          paymentToken: token,
+          theme: document.getElementById('darkMode').checked ? 'dark' : 'light',
+          debug: document.getElementById('debugMode').checked,
+          onPaymentSuccess: (data) => log('CALLBACK: onPaymentSuccess — ' + data.amount + ' ' + data.currency),
+          onPaymentFailed: (data) => log('CALLBACK: onPaymentFailed — ' + data.transactionId),
+          onPaymentPending: (data) => log('CALLBACK: onPaymentPending — ' + data.status),
+          onReady: () => log('CALLBACK: onReady'),
+          onClose: (data) => log('CALLBACK: onClose — ' + data.status),
+          onError: (err) => log('CALLBACK: onError — ' + err.message),
+        })
+      } catch (err) {
+        log('Error: ' + err.message)
+      }
     })
   </script>
 </body>

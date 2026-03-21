@@ -1,60 +1,48 @@
 import { describe, it, expect } from 'vitest'
-import { isDirectConfig, isBackendConfig } from '../src/types'
-import type { SeamlessConfig } from '../src/types'
+import type { SeamlessConfig, PaymentResponse, PaymentStatus } from '../src/types'
 
-describe('isDirectConfig', () => {
-  it('returns true when apiKey and apiPassword are present', () => {
-    const config = {
-      apiKey: 'sk_test_abc',
-      apiPassword: 'password',
-      country: 'CI',
-      merchantTransactionId: 'TX-1',
-      amount: 500,
-      currency: 'XOF',
-      designation: 'Test',
-      notifyUrl: 'https://example.com/webhook',
-      successUrl: 'https://example.com/success',
-      failedUrl: 'https://example.com/failed',
-      clientEmail: 'test@test.com',
-      clientFirstName: 'Jean',
-      clientLastName: 'Dupont',
-    } as SeamlessConfig
-    expect(isDirectConfig(config)).toBe(true)
+describe('SeamlessConfig type', () => {
+  it('accepts valid config with paymentToken', () => {
+    const config: SeamlessConfig = {
+      paymentToken: 'valid-token-abc123',
+    }
+    expect(config.paymentToken).toBe('valid-token-abc123')
   })
 
-  it('returns false when only apiKey without apiPassword', () => {
-    const config = { apiKey: 'sk_test_abc' } as unknown as SeamlessConfig
-    expect(isDirectConfig(config)).toBe(false)
-  })
-
-  it('returns false when paymentToken is present', () => {
-    const config = { paymentToken: 'token-abc' } as SeamlessConfig
-    expect(isDirectConfig(config)).toBe(false)
+  it('accepts all optional fields', () => {
+    const config: SeamlessConfig = {
+      paymentToken: 'valid-token-abc123',
+      lang: 'fr',
+      closeAfterResponse: true,
+      theme: 'dark',
+      debug: true,
+      onReady: () => {},
+      onPaymentSuccess: () => {},
+      onPaymentFailed: () => {},
+      onPaymentPending: () => {},
+      onClose: () => {},
+      onError: () => {},
+    }
+    expect(config.theme).toBe('dark')
+    expect(config.debug).toBe(true)
   })
 })
 
-describe('isBackendConfig', () => {
-  it('returns true when paymentToken is present', () => {
-    const config = { paymentToken: 'token-abc' } as SeamlessConfig
-    expect(isBackendConfig(config)).toBe(true)
+describe('PaymentResponse type', () => {
+  it('has correct shape', () => {
+    const response: PaymentResponse = {
+      amount: 1000,
+      currency: 'XOF',
+      status: 'ACCEPTED',
+      paymentMethod: 'OM_CI',
+      description: 'Test',
+      transactionId: 'TX-123',
+    }
+    expect(response.status).toBe('ACCEPTED')
   })
 
-  it('returns false when apiKey is present', () => {
-    const config = {
-      apiKey: 'sk_test_abc',
-      apiPassword: 'pass',
-      country: 'CI',
-      merchantTransactionId: 'TX-1',
-      amount: 500,
-      currency: 'XOF',
-      designation: 'Test',
-      notifyUrl: 'https://example.com/webhook',
-      successUrl: 'https://example.com/success',
-      failedUrl: 'https://example.com/failed',
-      clientEmail: 'test@test.com',
-      clientFirstName: 'Jean',
-      clientLastName: 'Dupont',
-    } as SeamlessConfig
-    expect(isBackendConfig(config)).toBe(false)
+  it('supports all statuses', () => {
+    const statuses: PaymentStatus[] = ['ACCEPTED', 'REFUSED', 'PENDING', 'INITIATED', 'EXPIRED', 'UNKNOWN']
+    expect(statuses).toHaveLength(6)
   })
 })
