@@ -36,7 +36,7 @@ describe('Checkout', () => {
 
   it('creates overlay with waiting screen', () => {
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     expect(document.querySelector('.cp-seamless-overlay')).not.toBeNull()
@@ -46,7 +46,7 @@ describe('Checkout', () => {
 
   it('shows waiting title and message', () => {
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     const title = document.querySelector('.cp-seamless-waiting-title')
@@ -58,7 +58,7 @@ describe('Checkout', () => {
 
   it('shows cancel button', () => {
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     const btn = document.querySelector('.cp-seamless-cancel-btn')
@@ -68,7 +68,7 @@ describe('Checkout', () => {
 
   it('calls window.open with correct URL and dimensions', () => {
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/abc123')
 
     expect(window.open).toHaveBeenCalledWith(
@@ -80,7 +80,7 @@ describe('Checkout', () => {
 
   it('blocks body scroll when open', () => {
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     expect(document.body.style.overflow).toBe('hidden')
@@ -89,7 +89,7 @@ describe('Checkout', () => {
   it('calls onReady when popup opens', () => {
     mockWindowOpen()
     const onReady = vi.fn()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onReady })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onReady })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     expect(onReady).toHaveBeenCalledOnce()
@@ -100,7 +100,7 @@ describe('Checkout', () => {
     const handler = vi.fn()
     emitter.on('ready', handler)
 
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     expect(handler).toHaveBeenCalledOnce()
@@ -110,7 +110,7 @@ describe('Checkout', () => {
     vi.useFakeTimers()
     mockWindowOpen(true) // blocked
     const onError = vi.fn()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onError })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onError })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     expect(onError).toHaveBeenCalledWith(
@@ -125,7 +125,7 @@ describe('Checkout', () => {
     const handler = vi.fn()
     emitter.on('error', handler)
 
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     expect(handler).toHaveBeenCalledWith(
@@ -137,7 +137,7 @@ describe('Checkout', () => {
   it('closes popup on cancel button click', () => {
     vi.useFakeTimers()
     const mockPopup = mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     const cancelBtn = document.querySelector('.cp-seamless-cancel-btn') as HTMLElement
@@ -153,7 +153,7 @@ describe('Checkout', () => {
     vi.useFakeTimers()
     const onClose = vi.fn()
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onClose })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onClose })
     checkout.open('https://secure.cinetpay.net/checkout/token')
     checkout.close()
 
@@ -165,7 +165,7 @@ describe('Checkout', () => {
   it('restores body scroll after close', () => {
     vi.useFakeTimers()
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
     checkout.close()
 
@@ -177,7 +177,7 @@ describe('Checkout', () => {
   it('handles postMessage ACCEPTED from popup', () => {
     mockWindowOpen()
     const onPaymentSuccess = vi.fn()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onPaymentSuccess })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onPaymentSuccess })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     window.dispatchEvent(
@@ -195,7 +195,7 @@ describe('Checkout', () => {
   it('handles postMessage REFUSED from popup', () => {
     mockWindowOpen()
     const onPaymentFailed = vi.fn()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onPaymentFailed })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onPaymentFailed })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     window.dispatchEvent(
@@ -213,7 +213,7 @@ describe('Checkout', () => {
   it('handles postMessage PENDING from popup', () => {
     mockWindowOpen()
     const onPaymentPending = vi.fn()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onPaymentPending })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onPaymentPending })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     window.dispatchEvent(
@@ -231,7 +231,7 @@ describe('Checkout', () => {
   it('ignores messages from non-CinetPay origins', () => {
     mockWindowOpen()
     const onPaymentSuccess = vi.fn()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onPaymentSuccess })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onPaymentSuccess })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     window.dispatchEvent(
@@ -248,7 +248,7 @@ describe('Checkout', () => {
     vi.useFakeTimers()
     const mockPopup = mockWindowOpen()
     const onClose = vi.fn()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md', onClose })
+    const checkout = new Checkout({ logger: noopLogger, emitter, onClose })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     // Simulate popup being closed
@@ -262,7 +262,7 @@ describe('Checkout', () => {
 
   it('injects styles', () => {
     mockWindowOpen()
-    const checkout = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const checkout = new Checkout({ logger: noopLogger, emitter })
     checkout.open('https://secure.cinetpay.net/checkout/token')
 
     expect(document.getElementById('cp-seamless-styles')).not.toBeNull()
@@ -270,9 +270,9 @@ describe('Checkout', () => {
 
   it('does not duplicate styles on multiple opens', () => {
     mockWindowOpen()
-    const c1 = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const c1 = new Checkout({ logger: noopLogger, emitter })
     c1.open('https://secure.cinetpay.net/checkout/token1')
-    const c2 = new Checkout({ logger: noopLogger, emitter, size: 'md' })
+    const c2 = new Checkout({ logger: noopLogger, emitter })
     c2.open('https://secure.cinetpay.net/checkout/token2')
 
     expect(document.querySelectorAll('#cp-seamless-styles').length).toBe(1)

@@ -38,15 +38,6 @@ export interface SeamlessConfig {
   /** Callback : erreur technique */
   onError?: (error: PaymentError) => void
   /**
-   * Taille de la popup de paiement.
-   * - `sm` : 400x500
-   * - `md` : 500x650 (défaut)
-   * - `lg` : 600x750
-   * - `xl` : 800x900
-   * @default 'md'
-   */
-  size?: 'sm' | 'md' | 'lg' | 'xl'
-  /**
    * Active les logs de debug dans la console avec le préfixe `[CinetPay Seamless]`.
    * @default false
    */
