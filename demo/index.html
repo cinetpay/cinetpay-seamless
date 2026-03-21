@@ -62,8 +62,6 @@
     <button class="pay-btn" id="btn-pay">Ouvrir le paiement</button>
 
     <div class="options">
-      <input type="checkbox" id="darkMode">
-      <label for="darkMode">Mode sombre</label>
       <input type="checkbox" id="debugMode" checked>
       <label for="debugMode">Debug logs</label>
     </div>
@@ -107,12 +105,11 @@
         return
       }
 
-      log('Opening modal with token...')
+      log('Opening popup with token...')
 
       try {
         CinetPaySeamless.open({
           paymentToken: token,
-          theme: document.getElementById('darkMode').checked ? 'dark' : 'light',
           debug: document.getElementById('debugMode').checked,
           onPaymentSuccess: (data) => log('CALLBACK: onPaymentSuccess — ' + data.amount + ' ' + data.currency),
           onPaymentFailed: (data) => log('CALLBACK: onPaymentFailed — ' + data.transactionId),

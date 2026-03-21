@@ -2,13 +2,13 @@
 
 CinetPay Seamless — paiement inline sans redirection pour applications web.
 
-Le modal de paiement s'affiche directement dans votre page. Le client ne quitte jamais votre site.
+Ouvre la passerelle de paiement CinetPay dans une popup. L'utilisateur reste sur votre page. Le client ne quitte jamais votre site.
 
 ## Comment ça marche
 
 1. Votre **backend** initialise le paiement via le SDK `cinetpay-js` et obtient un `paymentToken`
-2. Votre **frontend** passe ce token au Seamless qui ouvre le modal de paiement
-3. Le client paie dans le modal — votre backend reçoit la confirmation via webhook
+2. Votre **frontend** passe ce token au Seamless qui ouvre la popup de paiement
+3. Le client paie dans la popup — votre backend reçoit la confirmation via webhook
 
 ```
 Frontend                          Backend                          CinetPay
@@ -19,7 +19,7 @@ Frontend                          Backend                          CinetPay
 4. CinetPaySeamless.open({
      paymentToken
    })
-5. Modal s'ouvre (iframe)                                          6. Page checkout
+5. Popup s'ouvre                                          6. Page checkout
 7. Client paie                                                     8. Traitement
 9. onPaymentSuccess callback      10. Webhook reçu sur notifyUrl
 ```
@@ -48,7 +48,7 @@ const { paymentToken } = await fetch('/api/pay', {
   body: JSON.stringify({ amount: 5000, orderId: 'ORDER-001' }),
 }).then(r => r.json())
 
-// 2. Ouvrir le modal
+// 2. Ouvrir la popup
 CinetPaySeamless.open({
   paymentToken,
   onPaymentSuccess: (data) => {
@@ -97,7 +97,7 @@ En plus des callbacks dans `open()`, écoutez les événements globalement :
 ```typescript
 import { CinetPaySeamless } from 'cinetpay-seamless'
 
-// Enregistrer les listeners AVANT d'ouvrir le modal
+// Enregistrer les listeners AVANT d'ouvrir la popup
 CinetPaySeamless.on('ready', () => {
   console.log('Passerelle chargée')
 })
@@ -144,13 +144,11 @@ CinetPaySeamless.once('payment.success', (data) => { ... })
 
 ### `CinetPaySeamless.open(config)`
 
-Ouvre le modal de paiement.
+Ouvre la popup de paiement CinetPay.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `paymentToken` | `string` | **requis** | Token obtenu via `cinetpay-js` (backend) |
-| `theme` | `'light' \| 'dark'` | `'light'` | Thème du modal |
-| `closeAfterResponse` | `boolean` | `true` | Afficher l'écran de résultat |
 | `debug` | `boolean` | `false` | Logs console `[CinetPay Seamless]` |
 | `onReady` | `() => void` | - | Iframe chargée |
 | `onPaymentSuccess` | `(data) => void` | - | Paiement accepté |
@@ -180,7 +178,7 @@ Listener appelé une seule fois.
 
 ### `CinetPaySeamless.close()`
 
-Ferme le modal.
+Ferme la popup et l'overlay.
 
 ### PaymentResponse
 
@@ -332,7 +330,7 @@ export default function CheckoutPage() {
       }),
     })
     const { paymentToken } = await res.json()
-    CinetPaySeamless.open({ paymentToken, theme: 'dark' })
+    CinetPaySeamless.open({ paymentToken, debug: true })
   }
 
   return <button onClick={handlePay}>Payer 5 000 XOF</button>
@@ -529,7 +527,7 @@ CinetPaySeamless.open({ paymentToken: 'abc...', debug: true })
 
 ```
 [CinetPay Seamless] CinetPaySeamless.open() called
-[CinetPay Seamless] Opening modal { paymentUrl: 'https://secure.cinetpay.net/checkout/abc...' }
+[CinetPay Seamless] Opening popup { paymentUrl: 'https://secure.cinetpay.net/checkout/abc...' }
 [CinetPay Seamless] Iframe loaded — checkout ready
 [CinetPay Seamless] Payment response: ACCEPTED { amount: 5000, currency: 'XOF', ... }
 [CinetPay Seamless] Payment accepted

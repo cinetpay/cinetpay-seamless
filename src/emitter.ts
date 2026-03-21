@@ -5,11 +5,11 @@ import type { PaymentResponse, PaymentError } from './types'
  *
  * | Événement | Donnée | Quand |
  * |---|---|---|
- * | `ready` | — | Iframe chargée, passerelle visible |
+ * | `ready` | — | Popup ouverte, passerelle prête |
  * | `payment.success` | `PaymentResponse` | Paiement accepté |
  * | `payment.failed` | `PaymentResponse` | Paiement refusé |
  * | `payment.pending` | `PaymentResponse` | En attente (PENDING, INITIATED, EXPIRED) |
- * | `close` | `{ status: string }` | Modal fermé |
+ * | `close` | `{ status: string }` | Popup fermée, overlay retiré |
  * | `error` | `PaymentError` | Erreur technique |
  */
 export interface EventMap {

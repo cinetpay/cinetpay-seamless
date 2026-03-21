@@ -5,7 +5,6 @@ import { EventEmitter } from './emitter'
 
 /** @internal Options du constructeur Checkout */
 export interface CheckoutOptions {
-  theme?: 'light' | 'dark'
   onReady?: () => void
   onPaymentSuccess?: (data: PaymentResponse) => void
   onPaymentFailed?: (data: PaymentResponse) => void
@@ -46,9 +45,8 @@ export class Checkout {
   private onErrorCallback?: (error: PaymentError) => void
   private logger: Logger
   private emitter: EventEmitter
-  private theme: 'light' | 'dark'
+
   constructor(options: CheckoutOptions) {
-    this.theme = options.theme ?? 'light'
     this.logger = options.logger
     this.emitter = options.emitter
     this.onReadyCallback = options.onReady

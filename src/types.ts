@@ -21,11 +21,7 @@ export interface SeamlessConfig {
   paymentToken: string
   /** Langue de l'interface : fr ou en */
   lang?: 'fr' | 'en'
-  /** Afficher l'écran de résultat après le paiement (défaut: true) */
-  closeAfterResponse?: boolean
-  /** Thème du modal : `'light'` (défaut) ou `'dark'` */
-  theme?: 'light' | 'dark'
-  /** Callback : iframe chargée, passerelle visible */
+  /** Callback : popup ouverte, passerelle de paiement prête */
   onReady?: () => void
   /** Callback : paiement accepté (statut ACCEPTED) */
   onPaymentSuccess?: (data: PaymentResponse) => void
@@ -33,7 +29,7 @@ export interface SeamlessConfig {
   onPaymentFailed?: (data: PaymentResponse) => void
   /** Callback : paiement en attente (statut PENDING, INITIATED, EXPIRED) */
   onPaymentPending?: (data: PaymentResponse) => void
-  /** Callback : modal fermé */
+  /** Callback : popup fermée et overlay retiré */
   onClose?: (data: { status: string }) => void
   /** Callback : erreur technique */
   onError?: (error: PaymentError) => void

@@ -104,7 +104,6 @@ export const CinetPaySeamless = {
    * ```typescript
    * CinetPaySeamless.open({
    *   paymentToken: 'abc123def456...',
-   *   theme: 'dark',
    *   debug: true,
    *   onPaymentSuccess: (data) => console.log('Payé !', data.amount),
    *   onPaymentFailed: (data) => console.log('Refusé'),
@@ -126,7 +125,6 @@ export const CinetPaySeamless = {
     const paymentUrl = `${SECURE_BASE_URL}/checkout/${config.paymentToken}`
 
     this._checkout = new Checkout({
-      theme: config.theme,
       logger,
       emitter: this._emitter,
       onReady: config.onReady,
