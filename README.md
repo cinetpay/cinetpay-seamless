@@ -536,11 +536,63 @@ CinetPaySeamless.open({ paymentToken: 'abc...', debug: true })
 
 ## Sécurité
 
-- Les credentials (`apiKey` / `apiPassword`) restent **côté serveur** — le frontend ne reçoit qu'un `paymentToken` opaque
+### Protection des clés API
+
+Les clés API (`apiKey` / `apiPassword`) ne sont **jamais** utilisées côté frontend. Le Seamless reçoit uniquement un `paymentToken` opaque et à usage unique, généré par votre backend.
+
+```
+NE FAITES PAS                              FAITES
+────────────────────────────────────────────────────────────────────────
+Mettre apiKey dans le code frontend        Initialiser le paiement côté serveur
+Exposer apiPassword dans le JavaScript     Passer uniquement le paymentToken au frontend
+Stocker les clés dans le code source       Utiliser des variables d'environnement (.env)
+Utiliser les mêmes clés partout            Clés sandbox (sk_test_) en dev, prod (sk_live_) en prod
+Partager vos clés par email/chat           Utiliser un gestionnaire de secrets
+Commiter le .env dans git                  Ajouter .env dans .gitignore
+```
+
+### Environnements
+
+| Préfixe de clé | Environnement | Usage |
+|---|---|---|
+| `sk_test_...` | Sandbox (`api.cinetpay.net`) | Développement et tests |
+| `sk_live_...` | Production (`api.cinetpay.co`) | Transactions réelles |
+
+**Règles importantes :**
+- Ne **jamais** utiliser des clés `sk_live_` en développement
+- Ne **jamais** mélanger des clés `sk_test_` et `sk_live_` dans le même environnement
+- Le SDK backend `cinetpay-js` détecte automatiquement l'environnement depuis le préfixe de la clé
+- En cas de compromission, changez immédiatement vos clés depuis le dashboard CinetPay
+
+### Architecture recommandée
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ FRONTEND (navigateur)                                           │
+│                                                                 │
+│  - cinetpay-seamless                                           │
+│  - Reçoit uniquement le paymentToken                           │
+│  - Aucune clé API, aucun secret                                │
+│  - Ouvre la popup CinetPay                                     │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │ fetch('/api/pay')
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ BACKEND (serveur)                                               │
+│                                                                 │
+│  - cinetpay-js                                                 │
+│  - Stocke apiKey + apiPassword en variables d'environnement    │
+│  - Initialise le paiement → obtient paymentToken               │
+│  - Reçoit les webhooks → vérifie le statut final               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Autres protections
+
 - **postMessage** : whitelist stricte des domaines CinetPay (bloque les domaines lookalike)
-- **Iframe sandboxé** : `allow-scripts allow-same-origin allow-forms allow-popups` (pas de `allow-top-navigation`)
 - **paymentToken validé** : regex `[a-zA-Z0-9_-]{10,128}` avant injection dans l'URL
-- **Zero dépendance** runtime
+- **Popup bloquée** : détection et callback `onError` avec code `POPUP_BLOCKED`
+- **Zero dépendance** runtime — aucun risque supply chain
 
 ## Support
 
