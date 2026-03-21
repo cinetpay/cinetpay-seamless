@@ -1,4 +1,4 @@
-import { Modal } from './modal'
+import { Checkout } from './checkout'
 import type {
   SeamlessConfig,
   PaymentResponse,
@@ -8,7 +8,6 @@ import type {
 import { Logger } from './logger'
 import { EventEmitter, type EventName, type EventMap } from './emitter'
 
-// Re-export types
 export type {
   SeamlessConfig,
   PaymentResponse,
@@ -21,27 +20,18 @@ export type { EventName, EventMap } from './emitter'
 const SECURE_BASE_URL = 'https://secure.cinetpay.net'
 
 /**
- * CinetPay Seamless — paiement inline sans redirection.
+ * CinetPay Seamless — paiement inline via popup window.
  *
- * Affiche un modal contenant la passerelle de paiement CinetPay
- * directement dans votre page. Le client ne quitte jamais votre site.
+ * Affiche un overlay d'attente et ouvre la passerelle de paiement
+ * CinetPay dans une popup. Le client reste sur votre page.
  *
  * Le `paymentToken` est obtenu côté serveur via le SDK `cinetpay-js` :
  *
  * ```typescript
- * // Backend (Node.js / Express / Next.js)
- * const payment = await client.payment.initialize({ ... }, 'CI')
- * res.json({ paymentToken: payment.paymentToken })
- * ```
- *
- * ```typescript
  * // Frontend
- * import { CinetPaySeamless } from 'cinetpay-seamless'
- *
  * CinetPaySeamless.open({
  *   paymentToken: 'abc123...',
  *   onPaymentSuccess: (data) => console.log('Payé !', data.amount),
- *   onPaymentFailed: (data) => console.log('Refusé'),
  * })
  * ```
  *
@@ -53,8 +43,8 @@ const SECURE_BASE_URL = 'https://secure.cinetpay.net'
  * ```
  */
 export const CinetPaySeamless = {
-  /** Instance du modal actuellement ouvert */
-  _modal: null as Modal | null,
+  /** Instance du checkout actuellement ouvert */
+  _checkout: null as Checkout | null,
 
   /** Event emitter partagé */
   _emitter: new EventEmitter(),
@@ -71,9 +61,7 @@ export const CinetPaySeamless = {
    * const unsub = CinetPaySeamless.on('payment.success', (data) => {
    *   console.log('Payé !', data.amount, data.currency)
    * })
-   *
-   * // Plus tard :
-   * unsub()
+   * unsub() // Se désabonner
    * ```
    */
   on<E extends EventName>(
@@ -85,9 +73,6 @@ export const CinetPaySeamless = {
 
   /**
    * Supprime un listener.
-   *
-   * @param event - Nom de l'événement
-   * @param handler - Référence du handler à supprimer
    */
   off<E extends EventName>(
     event: E,
@@ -98,9 +83,6 @@ export const CinetPaySeamless = {
 
   /**
    * Enregistre un listener appelé une seule fois.
-   *
-   * @param event - Nom de l'événement
-   * @param handler - Fonction appelée une seule fois
    */
   once<E extends EventName>(
     event: E,
@@ -110,7 +92,10 @@ export const CinetPaySeamless = {
   },
 
   /**
-   * Ouvre le modal de paiement CinetPay.
+   * Ouvre le checkout CinetPay.
+   *
+   * Affiche un overlay d'attente et ouvre la page de paiement dans une popup.
+   * La popup est centrée sur l'écran (500x700px).
    *
    * @param config - Configuration avec `paymentToken` et callbacks optionnels
    * @throws {Error} Si le `paymentToken` a un format invalide
@@ -139,11 +124,9 @@ export const CinetPaySeamless = {
     }
 
     const paymentUrl = `${SECURE_BASE_URL}/checkout/${config.paymentToken}`
-    logger.debug('Opening modal', { paymentUrl })
 
-    this._modal = new Modal({
+    this._checkout = new Checkout({
       theme: config.theme,
-      closeAfterResponse: config.closeAfterResponse,
       logger,
       emitter: this._emitter,
       onReady: config.onReady,
@@ -154,20 +137,15 @@ export const CinetPaySeamless = {
       onError: config.onError,
     })
 
-    this._modal.open(paymentUrl)
+    this._checkout.open(paymentUrl)
   },
 
   /**
-   * Ferme le modal de paiement s'il est ouvert.
-   *
-   * @example
-   * ```typescript
-   * CinetPaySeamless.close()
-   * ```
+   * Ferme le checkout (popup + overlay).
    */
   close(): void {
-    this._modal?.close()
-    this._modal = null
+    this._checkout?.close()
+    this._checkout = null
   },
 }
 

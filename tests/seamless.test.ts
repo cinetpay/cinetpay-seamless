@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { CinetPaySeamless } from '../src/index'
 
+function mockWindowOpen() {
+  const mockPopup = { closed: false, close: vi.fn(() => { mockPopup.closed = true }), focus: vi.fn() }
+  vi.stubGlobal('open', vi.fn(() => mockPopup))
+  return mockPopup
+}
+
 describe('CinetPaySeamless', () => {
   beforeEach(() => {
     document.body.textContent = ''
@@ -12,29 +18,33 @@ describe('CinetPaySeamless', () => {
     document.querySelectorAll('.cp-seamless-overlay').forEach((el) => el.remove())
     document.getElementById('cp-seamless-styles')?.remove()
     document.body.style.overflow = ''
+    vi.restoreAllMocks()
   })
 
   describe('open()', () => {
-    it('opens modal with paymentToken', () => {
+    it('opens popup and shows overlay', () => {
+      mockWindowOpen()
       CinetPaySeamless.open({ paymentToken: 'abc123-valid-token-xyz' })
 
-      const overlay = document.querySelector('.cp-seamless-overlay')
-      expect(overlay).not.toBeNull()
+      expect(document.querySelector('.cp-seamless-overlay')).not.toBeNull()
+      expect(window.open).toHaveBeenCalled()
     })
 
-    it('builds correct checkout URL from token', () => {
+    it('opens popup with correct checkout URL', () => {
+      mockWindowOpen()
       CinetPaySeamless.open({ paymentToken: 'my-payment-token-xyz789' })
 
-      const iframe = document.querySelector('iframe')
-      expect(iframe?.src).toBe('https://secure.cinetpay.net/checkout/my-payment-token-xyz789')
+      expect(window.open).toHaveBeenCalledWith(
+        'https://secure.cinetpay.net/checkout/my-payment-token-xyz789',
+        'CinetPayCheckout',
+        expect.any(String),
+      )
     })
 
-    it('passes onPaymentSuccess callback', () => {
+    it('calls onPaymentSuccess on ACCEPTED postMessage', () => {
+      mockWindowOpen()
       const onPaymentSuccess = vi.fn()
-      CinetPaySeamless.open({
-        paymentToken: 'valid-test-token-callback',
-        onPaymentSuccess,
-      })
+      CinetPaySeamless.open({ paymentToken: 'valid-test-token-callback', onPaymentSuccess })
 
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -48,12 +58,10 @@ describe('CinetPaySeamless', () => {
       )
     })
 
-    it('passes onPaymentFailed callback', () => {
+    it('calls onPaymentFailed on REFUSED', () => {
+      mockWindowOpen()
       const onPaymentFailed = vi.fn()
-      CinetPaySeamless.open({
-        paymentToken: 'valid-test-token-failed-cb',
-        onPaymentFailed,
-      })
+      CinetPaySeamless.open({ paymentToken: 'valid-test-token-failed-cb', onPaymentFailed })
 
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -67,12 +75,10 @@ describe('CinetPaySeamless', () => {
       )
     })
 
-    it('passes onPaymentPending callback', () => {
+    it('calls onPaymentPending on PENDING', () => {
+      mockWindowOpen()
       const onPaymentPending = vi.fn()
-      CinetPaySeamless.open({
-        paymentToken: 'valid-test-token-pending-cb',
-        onPaymentPending,
-      })
+      CinetPaySeamless.open({ paymentToken: 'valid-test-token-pending-cb', onPaymentPending })
 
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -84,15 +90,6 @@ describe('CinetPaySeamless', () => {
       expect(onPaymentPending).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'PENDING' }),
       )
-    })
-
-    it('applies dark theme', () => {
-      CinetPaySeamless.open({
-        paymentToken: 'valid-test-token-dark-mode',
-        theme: 'dark',
-      })
-
-      expect(document.querySelector('.cp-dark')).not.toBeNull()
     })
   })
 
@@ -116,6 +113,7 @@ describe('CinetPaySeamless', () => {
     })
 
     it('accepts valid paymentToken', () => {
+      mockWindowOpen()
       expect(() =>
         CinetPaySeamless.open({ paymentToken: '1ef969cf5da467dc98c70242f6c351d52eb3ff889b0f4f9e94078a1a0da6a2a3' }),
       ).not.toThrow()
@@ -123,31 +121,33 @@ describe('CinetPaySeamless', () => {
   })
 
   describe('close()', () => {
-    it('closes the active modal', () => {
+    it('closes overlay and popup', () => {
       vi.useFakeTimers()
+      const mockPopup = mockWindowOpen()
       CinetPaySeamless.open({ paymentToken: 'valid-test-close-token1' })
-      expect(document.querySelector('.cp-seamless-overlay')).not.toBeNull()
 
       CinetPaySeamless.close()
-      vi.advanceTimersByTime(500)
+      expect(mockPopup.close).toHaveBeenCalled()
 
+      vi.advanceTimersByTime(500)
       expect(document.querySelector('.cp-seamless-overlay')).toBeNull()
       vi.useRealTimers()
     })
 
-    it('does nothing if no modal is open', () => {
+    it('does nothing if no checkout is open', () => {
       expect(() => CinetPaySeamless.close()).not.toThrow()
     })
   })
 
   describe('Event listeners (on/off/once)', () => {
-    it('on() is exposed', () => {
+    it('on/off/once are exposed', () => {
       expect(typeof CinetPaySeamless.on).toBe('function')
       expect(typeof CinetPaySeamless.off).toBe('function')
       expect(typeof CinetPaySeamless.once).toBe('function')
     })
 
     it('on() receives payment.success events', () => {
+      mockWindowOpen()
       const handler = vi.fn()
       CinetPaySeamless.on('payment.success', handler)
 
@@ -166,6 +166,7 @@ describe('CinetPaySeamless', () => {
     })
 
     it('on() returns unsubscribe function', () => {
+      mockWindowOpen()
       const handler = vi.fn()
       const unsub = CinetPaySeamless.on('payment.success', handler)
       unsub()
@@ -192,44 +193,9 @@ describe('CinetPaySeamless', () => {
     })
   })
 
-  describe('Multiple opens', () => {
-    it('closes previous modal before opening new one', () => {
-      vi.useFakeTimers()
-      CinetPaySeamless.open({ paymentToken: 'valid-test-token-first-1234' })
-      CinetPaySeamless.open({ paymentToken: 'valid-test-token-second-5678' })
-      vi.advanceTimersByTime(500)
-
-      const iframes = document.querySelectorAll('iframe')
-      const lastIframe = iframes[iframes.length - 1]
-      expect(lastIframe?.src).toContain('valid-test-token-second-5678')
-      vi.useRealTimers()
-    })
-  })
-
-  describe('Iframe close event', () => {
-    it('closes modal when iframe sends CLOSE action', () => {
-      vi.useFakeTimers()
-      const onClose = vi.fn()
-      CinetPaySeamless.open({
-        paymentToken: 'valid-test-token-close-test',
-        onClose,
-      })
-
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          origin: 'https://secure.cinetpay.net',
-          data: { action: 'CLOSE' },
-        }),
-      )
-
-      vi.advanceTimersByTime(500)
-      expect(onClose).toHaveBeenCalled()
-      vi.useRealTimers()
-    })
-  })
-
   describe('Debug mode', () => {
     it('logs when debug is true', () => {
+      mockWindowOpen()
       const spy = vi.spyOn(console, 'debug').mockImplementation(() => {})
       CinetPaySeamless.open({ paymentToken: 'valid-test-token-debug-test', debug: true })
 
@@ -239,6 +205,7 @@ describe('CinetPaySeamless', () => {
     })
 
     it('does not log when debug is false', () => {
+      mockWindowOpen()
       const spy = vi.spyOn(console, 'debug').mockImplementation(() => {})
       CinetPaySeamless.open({ paymentToken: 'valid-test-token-no-debug-1', debug: false })
 
