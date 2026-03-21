@@ -68,17 +68,23 @@ CinetPaySeamless.open({
 <script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
 <script>
   document.getElementById('pay-btn').addEventListener('click', function() {
-    // paymentToken obtenu depuis votre backend
-    var token = 'votre-payment-token-ici'
-
-    CinetPaySeamless.open({
-      paymentToken: token,
-      onPaymentSuccess: function(data) {
-        alert('Merci ! ' + data.amount + ' ' + data.currency)
-      },
-      onPaymentFailed: function() {
-        alert('Paiement échoué')
-      },
+    // Appeler votre backend pour obtenir le paymentToken
+    fetch('/api/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 5000 })
+    })
+    .then(function(res) { return res.json() })
+    .then(function(data) {
+      CinetPaySeamless.open({
+        paymentToken: data.paymentToken,
+        onPaymentSuccess: function(result) {
+          alert('Merci ! ' + result.amount + ' ' + result.currency)
+        },
+        onPaymentFailed: function() {
+          alert('Paiement échoué')
+        },
+      })
     })
   })
 </script>
@@ -117,7 +123,7 @@ CinetPaySeamless.on('error', (err) => {
 })
 
 // Ouvrir — les listeners sont déjà en place
-CinetPaySeamless.open({ paymentToken: 'abc...' })
+CinetPaySeamless.open({ paymentToken: 'votre-payment-token-ici' })
 ```
 
 ### Désabonnement
@@ -276,7 +282,7 @@ const client = new CinetPayClient({
 })
 
 export async function POST(req: Request) {
-  const { amount, orderId } = await req.json()
+  const { amount, orderId, email, firstName, lastName, phone } = await req.json()
 
   const payment = await client.payment.initialize({
     currency: 'XOF',
@@ -284,9 +290,10 @@ export async function POST(req: Request) {
     amount,
     lang: 'fr',
     designation: `Commande ${orderId}`,
-    clientEmail: 'client@email.com',
-    clientFirstName: 'Jean',
-    clientLastName: 'Dupont',
+    clientEmail: email,
+    clientFirstName: firstName,
+    clientLastName: lastName,
+    clientPhoneNumber: phone,
     successUrl: `${process.env.APP_URL}/orders/${orderId}/success`,
     failedUrl: `${process.env.APP_URL}/orders/${orderId}/failed`,
     notifyUrl: `${process.env.APP_URL}/api/webhook`,
@@ -315,7 +322,14 @@ export default function CheckoutPage() {
     const res = await fetch('/api/pay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: 5000, orderId: `CMD-${Date.now()}` }),
+      body: JSON.stringify({
+        amount: 5000,
+        orderId: `CMD-${Date.now()}`,
+        email: 'client@email.com',
+        firstName: 'Jean',
+        lastName: 'Dupont',
+        phone: '+2250707000000',
+      }),
     })
     const { paymentToken } = await res.json()
     CinetPaySeamless.open({ paymentToken, theme: 'dark' })
@@ -337,11 +351,9 @@ function PayButton({ amount }: { amount: number }) {
   useEffect(() => {
     const unsub1 = CinetPaySeamless.on('payment.success', () => setStatus('success'))
     const unsub2 = CinetPaySeamless.on('payment.failed', () => setStatus('error'))
-    const unsub3 = CinetPaySeamless.on('close', () => {
-      if (status === 'loading') setStatus('idle')
-    })
+    const unsub3 = CinetPaySeamless.on('close', () => setStatus('idle'))
     return () => { unsub1(); unsub2(); unsub3() }
-  }, [status])
+  }, []) // Pas de deps — les listeners sont stables
 
   const handlePay = async () => {
     setStatus('loading')
@@ -390,6 +402,7 @@ async function pay() {
   status.value = 'loading'
   const res = await fetch('/api/pay', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ amount: 5000 }),
   })
   const { paymentToken } = await res.json()
