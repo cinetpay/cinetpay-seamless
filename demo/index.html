@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CinetPay Seamless — Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-weight: 500; font-size: 13px; margin-bottom: 6px; color: #555; }
+    input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    input:focus { outline: none; border-color: #e8530e; }
+    button.pay-btn {
+      width: 100%; padding: 14px; background: #e8530e; color: #fff; border: none;
+      border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px;
+    }
+    button.pay-btn:hover { background: #d14a0c; }
+    .options { display: flex; align-items: center; gap: 16px; margin-top: 16px; font-size: 13px; color: #666; }
+    .options label { display: inline; margin: 0; font-weight: 400; }
+    .hint {
+      margin-top: 24px; padding: 16px; background: #fff8f0; border: 1px solid #ffe0c0;
+      border-radius: 8px; font-size: 13px; color: #a05000; line-height: 1.5;
+    }
+    .hint code { background: #f0e8e0; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    #log {
+      margin-top: 24px; padding: 16px; background: #f8f8f8; border-radius: 8px;
+      font-size: 12px; font-family: 'SF Mono', Menlo, monospace; max-height: 200px;
+      overflow-y: auto; display: none;
+    }
+    #log.visible { display: block; }
+    .log-entry { padding: 4px 0; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CinetPay Seamless</h1>
+    <p class="subtitle">Demo — paiement inline sans redirection</p>
+
+    <div class="field">
+      <label>Payment Token</label>
+      <input type="text" id="paymentToken" placeholder="Token obtenu via votre backend (POST /v1/payment)">
+    </div>
+    <button class="pay-btn" id="btn-pay">Ouvrir le paiement</button>
+
+    <div class="options">
+      <input type="checkbox" id="debugMode" checked>
+      <label for="debugMode">Debug logs</label>
+    </div>
+
+    <div class="hint">
+      Pour obtenir un <code>paymentToken</code>, initialisez un paiement via votre backend
+      en appelant l'API CinetPay <code>POST /v1/payment</code>.
+      <br><br>
+      Vous pouvez utiliser <code>cinetpay-js</code> (Node.js), <code>cinetpay-laravel-sdk</code> (PHP),
+      ou un appel API direct depuis n'importe quel langage.
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <script type="module">
+    import { CinetPaySeamless } from '../dist/cinetpay-seamless.js'
+
+    function log(msg) {
+      const el = document.getElementById('log')
+      el.classList.add('visible')
+      const entry = document.createElement('div')
+      entry.className = 'log-entry'
+      entry.textContent = new Date().toLocaleTimeString() + ' — ' + msg
+      el.prepend(entry)
+    }
+
+    // Event listeners (style événementiel)
+    CinetPaySeamless.on('ready', () => log('EVENT: ready — passerelle chargée'))
+    CinetPaySeamless.on('payment.success', (data) => log('EVENT: payment.success — ' + data.amount + ' ' + data.currency))
+    CinetPaySeamless.on('payment.failed', (data) => log('EVENT: payment.failed — ' + data.transactionId))
+    CinetPaySeamless.on('payment.pending', (data) => log('EVENT: payment.pending — ' + data.status))
+    CinetPaySeamless.on('close', (data) => log('EVENT: close — status: ' + data.status))
+    CinetPaySeamless.on('error', (err) => log('EVENT: error — ' + err.code + ': ' + err.message))
+
+    document.getElementById('btn-pay').addEventListener('click', () => {
+      const token = document.getElementById('paymentToken').value.trim()
+      if (!token) {
+        log('Erreur : collez un paymentToken')
+        return
+      }
+
+      log('Opening popup with token...')
+
+      try {
+        CinetPaySeamless.open({
+          paymentToken: token,
+          debug: document.getElementById('debugMode').checked,
+          onPaymentSuccess: (data) => log('CALLBACK: onPaymentSuccess — ' + data.amount + ' ' + data.currency),
+          onPaymentFailed: (data) => log('CALLBACK: onPaymentFailed — ' + data.transactionId),
+          onPaymentPending: (data) => log('CALLBACK: onPaymentPending — ' + data.status),
+          onReady: () => log('CALLBACK: onReady'),
+          onClose: (data) => log('CALLBACK: onClose — ' + data.status),
+          onError: (err) => log('CALLBACK: onError — ' + err.message),
+        })
+      } catch (err) {
+        log('Error: ' + err.message)
+      }
+    })
+  </script>
+</body>
+</html>

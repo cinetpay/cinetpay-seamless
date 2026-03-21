@@ -1,235 +1,658 @@
-# [CinetPay](http://www.cinetpay.com) Seamless Integration
+# cinetpay-seamless
 
-CinetPay Seamless Integration permet d'intégrer facilement CinetPay de façon transparente à son service en ligne, c'est à dire que le client effectue le paiement sans quitter le site
-du marchand.
+CinetPay Seamless — paiement inline sans redirection pour applications web.
 
-## Compatibilité Application Hybride
+Ouvre la passerelle de paiement CinetPay dans une popup. L'utilisateur reste sur votre page. Le client ne quitte jamais votre site.
 
-CinetPay Seamless Integration a été testé et fonctionne sur :
+## Comment ça marche
 
-* Cordova
-* phoneGap
-* Ionic
-* jQuery Mobile
-L'integration de ce SDK se fait en trois etapes :
+1. Votre **backend** initialise le paiement via l'API CinetPay (`POST /v1/payment`) et obtient un `paymentToken`
+2. Votre **frontend** passe ce token au Seamless qui ouvre la popup de paiement
+3. Le client paie dans la popup — votre backend reçoit la confirmation via webhook
 
-## Etape 1 : Préparer la page de notification
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend
+    participant C as CinetPay API
 
-Pour ceux qui possèdent des services qui ne neccessitent pas un traitement des notifications de paiement de CinetPay, vous pouvez passer directement à l'etape 2, par exemple les services de don.
+    F->>B: 1. fetch('/api/pay')
+    B->>C: 2. POST /v1/payment
+    C-->>B: 3. paymentToken
+    B-->>F: 4. { paymentToken }
+    F->>F: 5. CinetPaySeamless.open({ paymentToken })
+    F->>C: 6. Popup → page checkout
+    Note over F,C: Le client paie dans la popup
+    C-->>B: 7. Webhook (notifyUrl)
+    C-->>F: 8. postMessage → onPaymentSuccess
+```
 
-A chaque paiement, CinetPay vous notifie via un lien de notification, nous vous conseillons de toujours le traiter côté serveur. Nous allons utiliser PHP dans ce cas de figure :
-Script index.php dans http://mondomaine.com/notify/ (le script doit se trouver dans le repertoire de votre url notify_url) ;
-```php
-<?php
-if (isset($_POST['cpm_trans_id'])) {
-    // SDK PHP de CinetPay 
-    require_once __DIR__ . '/cinetPay.php';
-    require_once __DIR__ . '/commande.php';
+## Installation
 
-    //La classe commande correspond à votre colonne qui gère les transactions dans votre base de données
-    $commande = new Commande();
-    try {
-        // Initialisation de CinetPay et Identification du paiement
-        $id_transaction = $_POST['cpm_trans_id'];
-        $apiKey = _VOTRE_APIKEY_;
-        $site_id = _VOTRE_SITEID_;
-        $plateform = "TEST"; // Valorisé à PROD si vous êtes en production
-        $CinetPay = new CinetPay($site_id, $apiKey, $plateform);
-        // Reprise exacte des bonnes données chez CinetPay
-        $CinetPay->setTransId($id_transaction)->getPayStatus();
-        $cpm_site_id = $CinetPay->_cpm_site_id;
-        $signature = $CinetPay->_signature;
-        $cpm_amount = $CinetPay->_cpm_amount;
-        $cpm_trans_id = $CinetPay->_cpm_trans_id;
-        $cpm_custom = $CinetPay->_cpm_custom;
-        $cpm_currency = $CinetPay->_cpm_currency;
-        $cpm_payid = $CinetPay->_cpm_payid;
-        $cpm_payment_date = $CinetPay->_cpm_payment_date;
-        $cpm_payment_time = $CinetPay->_cpm_payment_time;
-        $cpm_error_message = $CinetPay->_cpm_error_message;
-        $payment_method = $CinetPay->_payment_method;
-        $cpm_phone_prefixe = $CinetPay->_cpm_phone_prefixe;
-        $cel_phone_num = $CinetPay->_cel_phone_num;
-        $cpm_ipn_ack = $CinetPay->_cpm_ipn_ack;
-        $created_at = $CinetPay->_created_at;
-        $updated_at = $CinetPay->_updated_at;
-        $cpm_result = $CinetPay->_cpm_result;
-        $cpm_trans_status = $CinetPay->_cpm_trans_status;
-        $cpm_designation = $CinetPay->_cpm_designation;
-        $buyer_name = $CinetPay->_buyer_name;
+```bash
+npm install cinetpay-seamless
+```
 
-        // Recuperation de la ligne de la transaction dans votre base de données
-        $commande->setTransId($id_transaction);
-        $commande->getCommandeByTransId();
-        // Verification de l'etat du traitement de la commande
-        if ($commande->getStatut() == '00') {
-            // La commande a été déjà traité
-            // Arret du script
-            die();
-        }
-        // Dans le cas contrait, on remplit notre ligne des nouvelles données acquise en cas de tentative de paiement sur CinetPay
-        $commande->setMethode($payment_method);
-        $commande->setPayId($cpm_payid);
-        $commande->setBuyerName($buyer_name);
-        $commande->setSignature($signature);
-        $commande->setPhone($cel_phone_num);
-        $commande->setDatePaiement($cpm_payment_date . ' ' . $cpm_payment_time);
+### CDN
 
-        // On verifie que le montant payé chez CinetPay correspond à notre montant en base de données pour cette transaction
-        if ($commande->getMontant() == $cpm_amount) {
-            // C'est OK : On continue le remplissage des nouvelles données
-            $commande->setErrorMessage($cpm_error_message);
-            $commande->setStatut($cpm_result);
-            $commande->setTransStatus($cpm_trans_status);
-            if($cpm_result == '00'){
-                //Le paiement est bon
-                // Traitez et delivrez le service au client
-            }else{
-                //Le paiement a échoué
-            }
-        } else {
-            //Fraude : montant payé ' . $cpm_amount . ' ne correspond pas au montant de la commande
-            $commande->setStatut('-1');
-            $commande->setTransStatus('REFUSED');
-        }
-        // On met à jour notre ligne
-        $commande->update();
-    } catch (Exception $e) {
-        echo "Erreur :" . $e->getMessage();
-        // Une erreur s'est produite
-    }
-} else {
-    // Tentative d'accès direct au lien IPN
+```html
+<script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
+```
+
+## Démarrage rapide
+
+```typescript
+import { CinetPaySeamless } from 'cinetpay-seamless'
+
+// 1. Obtenir le paymentToken depuis votre backend
+const { paymentToken } = await fetch('/api/pay', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ amount: 5000, orderId: 'ORDER-001' }),
+}).then(r => r.json())
+
+// 2. Ouvrir la popup
+CinetPaySeamless.open({
+  paymentToken,
+  onPaymentSuccess: (data) => {
+    console.log('Paiement réussi !', data.amount, data.currency)
+  },
+  onPaymentFailed: (data) => {
+    console.log('Paiement refusé')
+  },
+})
+```
+
+## CDN / Vanilla JS
+
+```html
+<button id="pay-btn">Payer 5 000 XOF</button>
+
+<script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
+<script>
+  document.getElementById('pay-btn').addEventListener('click', function() {
+    // Appeler votre backend pour obtenir le paymentToken
+    fetch('/api/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 5000 })
+    })
+    .then(function(res) { return res.json() })
+    .then(function(data) {
+      CinetPaySeamless.open({
+        paymentToken: data.paymentToken,
+        onPaymentSuccess: function(result) {
+          alert('Merci ! ' + result.amount + ' ' + result.currency)
+        },
+        onPaymentFailed: function() {
+          alert('Paiement échoué')
+        },
+      })
+    })
+  })
+</script>
+```
+
+## Event Listeners (style événementiel)
+
+En plus des callbacks dans `open()`, écoutez les événements globalement :
+
+```typescript
+import { CinetPaySeamless } from 'cinetpay-seamless'
+
+// Enregistrer les listeners AVANT d'ouvrir la popup
+CinetPaySeamless.on('ready', () => {
+  console.log('Passerelle chargée')
+})
+
+CinetPaySeamless.on('payment.success', (data) => {
+  console.log('Payé !', data.amount, data.currency)
+})
+
+CinetPaySeamless.on('payment.failed', (data) => {
+  console.log('Refusé', data.transactionId)
+})
+
+CinetPaySeamless.on('payment.pending', (data) => {
+  console.log('En attente...', data.status)
+})
+
+CinetPaySeamless.on('close', ({ status }) => {
+  console.log('Modal fermé:', status)
+})
+
+CinetPaySeamless.on('error', (err) => {
+  console.error(err.code, err.message)
+})
+
+// Ouvrir — les listeners sont déjà en place
+CinetPaySeamless.open({ paymentToken: 'votre-payment-token-ici' })
+```
+
+### Désabonnement
+
+```typescript
+// on() retourne une fonction de désabonnement
+const unsubscribe = CinetPaySeamless.on('payment.success', handler)
+unsubscribe()
+
+// Ou avec off()
+CinetPaySeamless.off('payment.success', handler)
+
+// once() — appelé une seule fois
+CinetPaySeamless.once('payment.success', (data) => { ... })
+```
+
+## API
+
+### `CinetPaySeamless.open(config)`
+
+Ouvre la popup de paiement CinetPay.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `paymentToken` | `string` | **requis** | Token obtenu via votre backend (`POST /v1/payment`) |
+| `debug` | `boolean` | `false` | Logs console `[CinetPay Seamless]` |
+| `onReady` | `() => void` | - | Iframe chargée |
+| `onPaymentSuccess` | `(data) => void` | - | Paiement accepté |
+| `onPaymentFailed` | `(data) => void` | - | Paiement refusé |
+| `onPaymentPending` | `(data) => void` | - | En attente (PENDING, INITIATED, EXPIRED) |
+| `onClose` | `({ status }) => void` | - | Modal fermé |
+| `onError` | `(error) => void` | - | Erreur technique |
+
+### `CinetPaySeamless.on(event, handler)`
+
+| Événement | Donnée | Description |
+|---|---|---|
+| `ready` | — | Iframe chargée |
+| `payment.success` | `PaymentResponse` | Paiement accepté |
+| `payment.failed` | `PaymentResponse` | Paiement refusé |
+| `payment.pending` | `PaymentResponse` | En attente |
+| `close` | `{ status: string }` | Modal fermé |
+| `error` | `PaymentError` | Erreur technique |
+
+### `CinetPaySeamless.off(event, handler)`
+
+Supprime un listener.
+
+### `CinetPaySeamless.once(event, handler)`
+
+Listener appelé une seule fois.
+
+### `CinetPaySeamless.close()`
+
+Ferme la popup et l'overlay.
+
+### PaymentResponse
+
+```typescript
+{
+  amount: number
+  currency: string
+  status: 'ACCEPTED' | 'REFUSED' | 'PENDING' | 'INITIATED' | 'EXPIRED' | 'UNKNOWN'
+  paymentMethod: string
+  description: string
+  transactionId: string
+  metadata?: string
+  operatorId?: string
+  paymentDate?: string
 }
-?>
-```
-## Etape 2 : Préparation du formulaire de paiement
-
-Avant de commencer cette etape, il faut lier le seamless SDK à votre page :
-
-* `https://www.cinetpay.com/cdn/seamless_sdk/latest/cinetpay.prod.min.js`    : si vous êtes en production
-
-Cela se fait dans la balise head de votre page web
-
-Exemple (en PROD) :
-```html
-   <head>
-       ...
-       <script charset="utf-8" 
-               src="https://www.cinetpay.com/cdn/seamless_sdk/latest/cinetpay.prod.min.js"
-               type="text/javascript">
-       </script>
-   </head> 
 ```
 
-#### Creation du formulaire CinetPay
+## Exemples d'intégration
 
-Le formulaire de paiement CinetPay est constitué de :
-* `amount`      : Montant du paiement
-* `currency`    : Devise du paiement, toujours en CFA pour le moment
-* `trans_id`    : L'identifiant de la transaction, elle est unique
-* `designation` : La designation de votre paiement
-* `notify_url`  : le lien de notification silencieuse (IPN) après paiement
+> Le Seamless a besoin d'un `paymentToken` obtenu côté serveur. Les exemples ci-dessous
+> utilisent `cinetpay-js` (Node.js), mais vous pouvez utiliser n'importe quel langage/SDK :
+> `cinetpay-laravel-sdk` (PHP), un appel API direct (Python, Go, Ruby, etc.), ou tout autre outil
+> qui appelle `POST /v1/payment` sur l'API CinetPay.
 
-Vous pouvez ajouter en option ces deux elements :
-* `cel_phone_num`      : Numéro de téléphone sur lequel l'utilisateur effectuera le paiement
-* `cpm_phone_prefixe`    : Code Pays du numéro de téléphone (exemple 225)
+### Node.js (cinetpay-js) + Frontend (Seamless)
 
-Exemple :
+**Backend — Express :**
+```typescript
+import express from 'express'
+import { CinetPayClient } from 'cinetpay-js'
 
-```html
-<p id="payment_result"></p>
-<form id="info_paiement">
-    <input type="hidden"  id="amount" value="10">
+const app = express()
+app.use(express.json())
 
-    <input type="hidden" id="currency" value="CFA">
-    
-    <input type="hidden" id="trans_id" value="">
-    
-    <input type="hidden" id="cpm_custom" value="">
+const client = new CinetPayClient({
+  credentials: {
+    CI: {
+      apiKey: process.env.CINETPAY_API_KEY_CI!,
+      apiPassword: process.env.CINETPAY_API_PASSWORD_CI!,
+    },
+  },
+})
 
-    <input type="hidden" id="designation" value="Achat de chaussure noir">
-    
-    <button type="submit" id="process_payment">Proceder au Paiement</button>    
-</form>
+app.post('/api/pay', async (req, res) => {
+  const { amount, orderId, email, firstName, lastName, phone } = req.body
+
+  const payment = await client.payment.initialize({
+    currency: 'XOF',
+    merchantTransactionId: orderId,
+    amount,
+    lang: 'fr',
+    designation: `Commande ${orderId}`,
+    clientEmail: email,
+    clientFirstName: firstName,
+    clientLastName: lastName,
+    clientPhoneNumber: phone,
+    successUrl: `${process.env.APP_URL}/success`,
+    failedUrl: `${process.env.APP_URL}/failed`,
+    notifyUrl: `${process.env.APP_URL}/api/webhook`,
+    channel: 'PUSH',
+  }, 'CI')
+
+  res.json({ paymentToken: payment.paymentToken })
+})
 ```
-NB : _Avant l'affichage de ce formulaire, vous devez enregistrer les informations concernant cette transaction dans votre base de données afin de les verifier après paiement du client_
 
-#### Lier le formulaire au SDK Javascript
+**Frontend :**
+```typescript
+import { CinetPaySeamless } from 'cinetpay-seamless'
 
-Sur clic du bouton "Proceder au Paiement", Nous allons recuperer le montant de la transaction, l'identifiant de la transaction, la devise, la désignation et l'url de notification pour debuter le processus de paiement transparent sur CinetPay
-Exemple (fichier payment.js) :
-```html
-<script >
-    CinetPay.setConfig({
-            apikey: '174323661757617531bf99c9.80613927',
-            site_id: 393509,
-            notify_url: 'http://mondomaine.com/notify/'
-        });
-    var process_payment = document.getElementById('process_payment');
-        process_payment.addEventListener('click', function () {
-            CinetPay.setSignatureData({
-                amount: parseInt(document.getElementById('amount').value),
-                trans_id: document.getElementById('trans_id').value,
-                currency: document.getElementById('currency').value,
-                designation: document.getElementById('designation').value,
-                custom: document.getElementById('cpm_custom').value
-            });
-            CinetPay.getSignature();
-        });
+async function pay(amount: number) {
+  const res = await fetch('/api/pay', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      amount,
+      orderId: `CMD-${Date.now()}`,
+      email: 'client@email.com',
+      firstName: 'Jean',
+      lastName: 'Dupont',
+      phone: '+2250707000000',
+    }),
+  })
+  const { paymentToken } = await res.json()
+
+  CinetPaySeamless.open({ paymentToken, debug: true })
+}
+```
+
+### PHP / Laravel (cinetpay-laravel-sdk)
+
+```php
+// routes/api.php
+Route::post('/pay', function (Request $request) {
+    $payment = CinetPay::payment()->initialize([
+        'currency' => 'XOF',
+        'merchant_transaction_id' => 'CMD-' . time(),
+        'amount' => $request->amount,
+        'lang' => 'fr',
+        'designation' => 'Commande ' . $request->orderId,
+        'client_email' => $request->email,
+        'client_first_name' => $request->firstName,
+        'client_last_name' => $request->lastName,
+        'success_url' => config('app.url') . '/success',
+        'failed_url' => config('app.url') . '/failed',
+        'notify_url' => config('app.url') . '/api/webhook',
+        'channel' => 'PUSH',
+    ], 'CI');
+
+    return response()->json(['paymentToken' => $payment->paymentToken]);
+});
+```
+
+### API directe (n'importe quel langage)
+
+```bash
+# 1. Authentification
+TOKEN=$(curl -s -X POST https://api.cinetpay.net/v1/oauth/login \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"sk_test_...","api_password":"..."}' \
+  | jq -r '.access_token')
+
+# 2. Initialisation du paiement
+PAYMENT_TOKEN=$(curl -s -X POST https://api.cinetpay.net/v1/payment \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "currency": "XOF",
+    "merchant_transaction_id": "CMD-'$(date +%s)'",
+    "amount": 5000,
+    "lang": "fr",
+    "designation": "Commande",
+    "client_email": "client@email.com",
+    "client_first_name": "Jean",
+    "client_last_name": "Dupont",
+    "success_url": "https://monsite.com/success",
+    "failed_url": "https://monsite.com/failed",
+    "notify_url": "https://monsite.com/webhook",
+    "channel": "PUSH",
+    "direct_pay": false
+  }' | jq -r '.payment_token')
+
+# 3. Passer $PAYMENT_TOKEN au frontend
+echo "paymentToken: $PAYMENT_TOKEN"
+```
+
+### Next.js (App Router)
+
+**`app/api/pay/route.ts` :**
+```typescript
+import { CinetPayClient } from 'cinetpay-js'
+import { NextResponse } from 'next/server'
+
+const client = new CinetPayClient({
+  credentials: {
+    CI: {
+      apiKey: process.env.CINETPAY_API_KEY_CI!,
+      apiPassword: process.env.CINETPAY_API_PASSWORD_CI!,
+    },
+  },
+})
+
+export async function POST(req: Request) {
+  const { amount, orderId, email, firstName, lastName, phone } = await req.json()
+
+  const payment = await client.payment.initialize({
+    currency: 'XOF',
+    merchantTransactionId: orderId,
+    amount,
+    lang: 'fr',
+    designation: `Commande ${orderId}`,
+    clientEmail: email,
+    clientFirstName: firstName,
+    clientLastName: lastName,
+    clientPhoneNumber: phone,
+    successUrl: `${process.env.APP_URL}/orders/${orderId}/success`,
+    failedUrl: `${process.env.APP_URL}/orders/${orderId}/failed`,
+    notifyUrl: `${process.env.APP_URL}/api/webhook`,
+    channel: 'PUSH',
+  }, 'CI')
+
+  return NextResponse.json({ paymentToken: payment.paymentToken })
+}
+```
+
+**`app/checkout/page.tsx` :**
+```tsx
+'use client'
+import { useEffect } from 'react'
+import { CinetPaySeamless } from 'cinetpay-seamless'
+
+export default function CheckoutPage() {
+  useEffect(() => {
+    const unsub = CinetPaySeamless.on('payment.success', (data) => {
+      window.location.href = `/orders/${data.transactionId}/success`
+    })
+    return unsub
+  }, [])
+
+  const handlePay = async () => {
+    const res = await fetch('/api/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: 5000,
+        orderId: `CMD-${Date.now()}`,
+        email: 'client@email.com',
+        firstName: 'Jean',
+        lastName: 'Dupont',
+        phone: '+2250707000000',
+      }),
+    })
+    const { paymentToken } = await res.json()
+    CinetPaySeamless.open({ paymentToken, debug: true })
+  }
+
+  return <button onClick={handlePay}>Payer 5 000 XOF</button>
+}
+```
+
+### React
+
+```tsx
+import { useEffect, useState } from 'react'
+import { CinetPaySeamless } from 'cinetpay-seamless'
+
+function PayButton({ amount }: { amount: number }) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+
+  useEffect(() => {
+    const unsub1 = CinetPaySeamless.on('payment.success', () => setStatus('success'))
+    const unsub2 = CinetPaySeamless.on('payment.failed', () => setStatus('error'))
+    const unsub3 = CinetPaySeamless.on('close', () => setStatus('idle'))
+    return () => { unsub1(); unsub2(); unsub3() }
+  }, []) // Pas de deps — les listeners sont stables
+
+  const handlePay = async () => {
+    setStatus('loading')
+    const res = await fetch('/api/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    })
+    const { paymentToken } = await res.json()
+    CinetPaySeamless.open({ paymentToken })
+  }
+
+  return (
+    <div>
+      <button onClick={handlePay} disabled={status === 'loading'}>
+        {status === 'loading' ? 'Chargement...' : `Payer ${amount} XOF`}
+      </button>
+      {status === 'success' && <p>Paiement réussi !</p>}
+      {status === 'error' && <p>Paiement échoué</p>}
+    </div>
+  )
+}
+```
+
+### Vue 3
+
+```vue
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue'
+import { CinetPaySeamless } from 'cinetpay-seamless'
+
+const status = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+let unsubs: (() => void)[] = []
+
+onMounted(() => {
+  unsubs.push(
+    CinetPaySeamless.on('payment.success', () => { status.value = 'success' }),
+    CinetPaySeamless.on('payment.failed', () => { status.value = 'error' }),
+    CinetPaySeamless.on('close', () => { if (status.value === 'loading') status.value = 'idle' }),
+  )
+})
+
+onUnmounted(() => unsubs.forEach(u => u()))
+
+async function pay() {
+  status.value = 'loading'
+  const res = await fetch('/api/pay', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: 5000 }),
+  })
+  const { paymentToken } = await res.json()
+  CinetPaySeamless.open({ paymentToken })
+}
 </script>
+
+<template>
+  <button @click="pay" :disabled="status === 'loading'">
+    {{ status === 'loading' ? 'Chargement...' : 'Payer 5 000 XOF' }}
+  </button>
+  <p v-if="status === 'success'">Paiement réussi !</p>
+  <p v-if="status === 'error'">Paiement échoué</p>
+</template>
 ```
 
-## Etape 3 : Observer  le paiement transparent
-
-Lorsque le client se trouve sur le guichet de CinetPay, Vous pouvez suivre l'etat d'avancement du client sur CinetPay grace à ces evènements :
-
-* `error`              : Une erreur s'est produite, les requëtes ajax ou le paiement ont echoué,
-* `paymentPending`     : Le paiement est en cours
-* `paymentSuccessfull` : Le paiement est terminé, Le paiement est valide ou est annulé
-
-Exemple (suite du fichier payment.js):
+### Formulaire HTML complet
 
 ```html
-<script >
-   var result_div = document.getElementById('payment_result');
-   CinetPay.on('error', function (e) {
-        result_div.innerHTML = '';
-        result_div.innerHTML += '<b>Error code:</b>' + e.code + '<br><b>Message:</b>:' + e.message;
-   });
-   CinetPay.on('paymentPending', function (e) {
-       result_div.innerHTML = '';
-        result_div.innerHTML = 'Paiement en cours <br>';
-        result_div.innerHTML += '<b>code:</b>' + e.code + '<br><b>Message:</b>:' + e.message;
-   });
-   CinetPay.on('signatureCreated', function () {})
-   CinetPay.on('paymentSuccessfull', function (paymentInfo) {
-           if(typeof paymentInfo.lastTime != 'undefined'){
-               result_div.innerHTML = '';
-               if(paymentInfo.cpm_result == '00'){
-                   result_div.innerHTML = 'Votre paiement a été validé avec succès : <br> Montant payé :'+paymentInfo.cpm_amount+'<br>';
-               }else{
-                   result_div.innerHTML = 'Une erreur est survenue :'+paymentInfo.cpm_error_message;
-               }
-           }
-   });
-</script>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paiement</title>
+  <script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
+</head>
+<body>
+  <form id="payment-form">
+    <input type="text" id="firstName" required placeholder="Prénom">
+    <input type="text" id="lastName" required placeholder="Nom">
+    <input type="email" id="email" required placeholder="Email">
+    <input type="tel" id="phone" required placeholder="+2250707000000">
+    <input type="number" id="amount" value="5000" min="100">
+    <button type="submit" id="payBtn">Payer</button>
+  </form>
+
+  <div id="status"></div>
+
+  <script>
+    CinetPaySeamless.on('payment.success', function(data) {
+      document.getElementById('status').textContent = 'Payé ! ' + data.amount + ' ' + data.currency
+      document.getElementById('payBtn').disabled = false
+    })
+
+    CinetPaySeamless.on('payment.failed', function() {
+      document.getElementById('status').textContent = 'Paiement refusé'
+      document.getElementById('payBtn').disabled = false
+    })
+
+    CinetPaySeamless.on('close', function() {
+      document.getElementById('payBtn').disabled = false
+    })
+
+    document.getElementById('payment-form').addEventListener('submit', function(e) {
+      e.preventDefault()
+      document.getElementById('payBtn').disabled = true
+
+      // Appeler votre backend pour obtenir le paymentToken
+      fetch('/api/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: parseInt(document.getElementById('amount').value),
+          firstName: document.getElementById('firstName').value,
+          lastName: document.getElementById('lastName').value,
+          email: document.getElementById('email').value,
+          phone: document.getElementById('phone').value,
+        })
+      })
+      .then(function(res) { return res.json() })
+      .then(function(data) {
+        CinetPaySeamless.open({ paymentToken: data.paymentToken, debug: true })
+      })
+      .catch(function(err) {
+        document.getElementById('status').textContent = 'Erreur: ' + err.message
+        document.getElementById('payBtn').disabled = false
+      })
+    })
+  </script>
+</body>
+</html>
 ```
 
-## Compatibilité Navigateurs Web
+### Gestion d'erreur complète
 
-CinetPay Seamless Integration a été testé et fonctionne sur tous les navigateurs modernes y compris :
+```typescript
+CinetPaySeamless.on('ready', () => {
+  disablePayButton() // Empêcher les doubles clics
+})
 
-* Chrome
-* Safari
-* Firefox
-* Opera
-* Internet Explorer 8+.
+CinetPaySeamless.on('payment.success', (data) => {
+  showToast('success', `${data.amount} ${data.currency} payés !`)
+  redirectTo(`/orders/${data.transactionId}/success`)
+})
 
-## Votre Api Key et Site ID
+CinetPaySeamless.on('payment.failed', () => {
+  showToast('error', 'Le paiement a été refusé.')
+  enablePayButton()
+})
 
-Ces informations sont disponibles dans votre BackOffice CinetPay.
+CinetPaySeamless.on('payment.pending', (data) => {
+  showToast('info', `En attente (${data.status})...`)
+})
 
-## Exemple Intégration
+CinetPaySeamless.on('error', (err) => {
+  showToast('error', `Erreur: ${err.message}`)
+  enablePayButton()
+})
 
-Vous trouverez un exemple d'intégration complet dans le dossier exemple/html/
+CinetPaySeamless.on('close', ({ status }) => {
+  if (status === 'UNKNOWN') {
+    showToast('warning', 'Paiement annulé.')
+  }
+  enablePayButton()
+})
+```
+
+## Debug
+
+```typescript
+CinetPaySeamless.open({ paymentToken: 'abc...', debug: true })
+```
+
+```
+[CinetPay Seamless] CinetPaySeamless.open() called
+[CinetPay Seamless] Opening popup { paymentUrl: 'https://secure.cinetpay.net/checkout/abc...' }
+[CinetPay Seamless] Iframe loaded — checkout ready
+[CinetPay Seamless] Payment response: ACCEPTED { amount: 5000, currency: 'XOF', ... }
+[CinetPay Seamless] Payment accepted
+[CinetPay Seamless] Modal closed { lastStatus: 'ACCEPTED' }
+```
+
+## Sécurité
+
+### Protection des clés API
+
+Les clés API (`apiKey` / `apiPassword`) ne sont **jamais** utilisées côté frontend. Le Seamless reçoit uniquement un `paymentToken` opaque et à usage unique, généré par votre backend.
+
+```
+NE FAITES PAS                              FAITES
+────────────────────────────────────────────────────────────────────────
+Mettre apiKey dans le code frontend        Initialiser le paiement côté serveur
+Exposer apiPassword dans le JavaScript     Passer uniquement le paymentToken au frontend
+Stocker les clés dans le code source       Utiliser des variables d'environnement (.env)
+Utiliser les mêmes clés partout            Clés sandbox (sk_test_) en dev, prod (sk_live_) en prod
+Partager vos clés par email/chat           Utiliser un gestionnaire de secrets
+Commiter le .env dans git                  Ajouter .env dans .gitignore
+```
+
+### Environnements
+
+| Préfixe de clé | Environnement | Usage |
+|---|---|---|
+| `sk_test_...` | Sandbox (`api.cinetpay.net`) | Développement et tests |
+| `sk_live_...` | Production (`api.cinetpay.co`) | Transactions réelles |
+
+**Règles importantes :**
+- Ne **jamais** utiliser des clés `sk_live_` en développement
+- Ne **jamais** mélanger des clés `sk_test_` et `sk_live_` dans le même environnement
+- Les SDKs backend (cinetpay-js, cinetpay-laravel-sdk) détectent automatiquement l'environnement depuis le préfixe de la clé
+- En cas de compromission, changez immédiatement vos clés depuis le dashboard CinetPay
+
+### Architecture recommandée
+
+```mermaid
+flowchart LR
+    F["Frontend\ncinetpay-seamless\n(aucun secret)"] -->|"fetch /api/pay"| B["Backend\ncinetpay-js / Laravel / API directe\n(apiKey + apiPassword en .env)"]
+    B -->|"POST /v1/payment"| C["CinetPay API"]
+    C -->|"paymentToken"| B
+    B -->|"paymentToken"| F
+    F -->|"popup"| D["CinetPay Checkout"]
+    D -->|"webhook"| B
+    D -->|"postMessage"| F
+```
+
+### Autres protections
+
+- **postMessage** : whitelist stricte des domaines CinetPay (bloque les domaines lookalike)
+- **paymentToken validé** : regex `[a-zA-Z0-9_-]{10,128}` avant injection dans l'URL
+- **Popup bloquée** : détection et callback `onError` avec code `POPUP_BLOCKED`
+- **Zero dépendance** runtime — aucun risque supply chain
+
+## Support
+
+Pour toute question : **support@cinetpay.com**
+
+## Licence
+
+MIT
