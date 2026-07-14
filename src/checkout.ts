@@ -34,8 +34,10 @@ export class Checkout {
   private overlay: HTMLDivElement | null = null
   private popup: Window | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
+  private closeTimer: ReturnType<typeof setTimeout> | null = null
   private messageHandler: ((event: MessageEvent) => void) | null = null
   private lastStatus = 'UNKNOWN'
+  private previousBodyOverflow = ''
 
   private onReadyCallback?: () => void
   private onPaymentSuccessCallback?: (data: PaymentResponse) => void
@@ -67,6 +69,8 @@ export class Checkout {
     this.injectStyles()
     this.createOverlay()
     this.openPopup(paymentUrl)
+    if (!this.popup) return
+
     this.listenForMessages()
     this.startPolling()
 
@@ -74,6 +78,7 @@ export class Checkout {
       this.overlay?.classList.add('cp-visible')
     })
 
+    this.previousBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
   }
 
@@ -81,6 +86,8 @@ export class Checkout {
    * Ferme la popup et l'overlay.
    */
   close(): void {
+    if (this.closeTimer) return
+
     this.stopPolling()
 
     if (this.messageHandler) {
@@ -94,16 +101,140 @@ export class Checkout {
     this.popup = null
 
     if (this.overlay) {
-      this.overlay.classList.remove('cp-visible')
-      setTimeout(() => {
-        this.overlay?.remove()
-        this.overlay = null
-        document.body.style.overflow = ''
+      const overlay = this.overlay
+      this.overlay = null
+      overlay.classList.remove('cp-visible')
+      this.closeTimer = setTimeout(() => {
+        overlay.remove()
+        this.closeTimer = null
+
+        if (!document.querySelector('.cp-seamless-overlay')) {
+          document.body.style.overflow = this.previousBodyOverflow
+        }
 
         this.logger.debug('Checkout closed', { lastStatus: this.lastStatus })
         this.emitter.emit('close', { status: this.lastStatus })
         this.onCloseCallback?.({ status: this.lastStatus })
       }, 300)
+    }
+  }
+
+  private static isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+  }
+
+  private static childRecords(data: Record<string, unknown>): Record<string, unknown>[] {
+    const records: Record<string, unknown>[] = []
+    for (const key of ['details', 'transaction', 'payment', 'result', 'data']) {
+      const child = data[key]
+      if (Checkout.isRecord(child)) records.push(child)
+    }
+    records.push(data)
+    return records
+  }
+
+  private static findValue(data: Record<string, unknown>, keys: string[]): unknown {
+    for (const record of Checkout.childRecords(data)) {
+      for (const key of keys) {
+        if (record[key] !== undefined && record[key] !== null) return record[key]
+      }
+    }
+    return undefined
+  }
+
+  private static asString(value: unknown): string | undefined {
+    if (value === undefined || value === null) return undefined
+    return String(value)
+  }
+
+  private static asNumber(value: unknown): number {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+    if (typeof value === 'string') {
+      const parsed = Number(value.replace(/\s/g, ''))
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+    return 0
+  }
+
+  private static asOptionalNumber(value: unknown): number | undefined {
+    if (value === undefined || value === null) return undefined
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+    if (typeof value === 'string') {
+      const parsed = Number(value.trim())
+      return Number.isFinite(parsed) ? parsed : undefined
+    }
+    return undefined
+  }
+
+  private static normalizeStatus(rawStatus?: string, apiCode?: number): PaymentStatus {
+    const normalized = rawStatus?.trim().toUpperCase().replace(/[\s-]+/g, '_')
+
+    if (normalized) {
+      if (['ACCEPTED', 'SUCCESS', 'SUCCEEDED', 'SUCCESSFUL', 'PAID', 'VALIDATED', 'APPROVED'].includes(normalized)) {
+        return 'ACCEPTED'
+      }
+      if ([
+        'REFUSED',
+        'FAILED',
+        'FAIL',
+        'FAILURE',
+        'DENIED',
+        'DECLINED',
+        'REJECTED',
+        'CANCELED',
+        'CANCELLED',
+        'CANCEL',
+        'INSUFFICIENT_BALANCE',
+      ].includes(normalized)) {
+        return 'REFUSED'
+      }
+      if (['PENDING', 'INITIATED', 'EXPIRED'].includes(normalized)) {
+        return normalized as PaymentStatus
+      }
+      if (['WAITING', 'PROCESSING', 'IN_PROGRESS'].includes(normalized)) {
+        return 'PENDING'
+      }
+    }
+
+    switch (apiCode) {
+      case 100:
+        return 'ACCEPTED'
+      case 2010:
+      case 2005:
+        return 'REFUSED'
+      case 2001:
+        return 'INITIATED'
+      case 2002:
+        return 'PENDING'
+      case 2003:
+        return 'EXPIRED'
+    }
+
+    return 'UNKNOWN'
+  }
+
+  private static buildPaymentResponse(data: Record<string, unknown>): PaymentResponse {
+    const rawStatus = Checkout.asString(Checkout.findValue(data, [
+      'status',
+      'transaction_status',
+      'trans_status',
+      'payment_status',
+    ]))
+    const apiCode = Checkout.asOptionalNumber(Checkout.findValue(data, ['code']))
+    const status = Checkout.normalizeStatus(rawStatus, apiCode)
+
+    return {
+      amount: Checkout.asNumber(Checkout.findValue(data, ['amount'])),
+      currency: Checkout.asString(Checkout.findValue(data, ['currency'])) ?? '',
+      status,
+      rawStatus,
+      apiCode,
+      paymentMethod: Checkout.asString(Checkout.findValue(data, ['payment_method', 'paymentMethod'])) ?? '',
+      description: Checkout.asString(Checkout.findValue(data, ['description', 'designation', 'message'])) ?? '',
+      metadata: Checkout.asString(Checkout.findValue(data, ['metadata', 'custom'])),
+      operatorId: Checkout.asString(Checkout.findValue(data, ['operator_id', 'operatorId'])),
+      paymentDate: Checkout.asString(Checkout.findValue(data, ['payment_date', 'paymentDate'])),
+      transactionId: Checkout.asString(Checkout.findValue(data, ['transaction_id', 'transactionId', 'merchant_transaction_id'])) ?? '',
     }
   }
 
@@ -263,28 +394,20 @@ export class Checkout {
 
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
-        if (!data || typeof data !== 'object') return
+        if (!Checkout.isRecord(data)) return
 
-        if (data.status) {
-          const status = data.status as PaymentStatus
-          const response: PaymentResponse = {
-            amount: data.amount ?? data.cpm_amount ?? 0,
-            currency: data.currency ?? data.cpm_currency ?? '',
-            status,
-            paymentMethod: data.payment_method ?? data.cpm_payment_method ?? '',
-            description: data.description ?? data.cpm_designation ?? '',
-            metadata: data.metadata ?? data.cpm_custom ?? undefined,
-            operatorId: data.operator_id ?? data.cpm_operator_id ?? undefined,
-            paymentDate: data.payment_date ?? data.cpm_payment_date ?? undefined,
-            transactionId: data.transaction_id ?? data.cpm_trans_id ?? '',
-          }
+        const response = Checkout.buildPaymentResponse(data)
+        const rawStatus = response.rawStatus?.trim().toUpperCase()
+        if (response.status !== 'UNKNOWN' || (rawStatus && rawStatus !== 'OK')) {
           this.dispatchResponse(response)
         }
 
-        if (data.error || data.code === 'ERROR') {
+        const error = Checkout.findValue(data, ['error'])
+        const code = Checkout.asString(Checkout.findValue(data, ['code']))
+        if (error || code === 'ERROR') {
           const err: PaymentError = {
-            code: data.code ?? 'UNKNOWN',
-            message: data.message ?? data.error ?? 'An error occurred',
+            code: code ?? 'UNKNOWN',
+            message: Checkout.asString(Checkout.findValue(data, ['message'])) ?? Checkout.asString(error) ?? 'An error occurred',
           }
           this.logger.error('Payment error from popup', err)
           this.emitter.emit('error', err)

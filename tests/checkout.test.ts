@@ -134,6 +134,23 @@ describe('Checkout', () => {
       vi.useRealTimers()
     })
 
+    it('does not listen for payment messages after popup is blocked', () => {
+      vi.useFakeTimers()
+      mockWindowOpen(true)
+      const onPaymentSuccess = vi.fn()
+      const { checkout } = createCheckout({ onPaymentSuccess })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'ACCEPTED', amount: 1000, currency: 'XOF', transaction_id: 'TX-BLOCKED' },
+      }))
+
+      expect(onPaymentSuccess).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(500)
+      vi.useRealTimers()
+    })
+
     it('detects popup closure via polling', () => {
       vi.useFakeTimers()
       const mockPopup = mockWindowOpen()
@@ -438,7 +455,7 @@ describe('Checkout', () => {
       expect(fn).not.toHaveBeenCalled()
     })
 
-    it('maps cpm_ prefixed fields', () => {
+    it('maps fields from the current payment status response', () => {
       mockWindowOpen()
       const fn = vi.fn()
       const { checkout } = createCheckout({ onPaymentSuccess: fn })
@@ -447,24 +464,194 @@ describe('Checkout', () => {
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: {
-          status: 'ACCEPTED',
-          cpm_amount: 3000,
-          cpm_currency: 'GNF',
-          cpm_payment_method: 'MTN_GN',
-          cpm_designation: 'Old format',
-          cpm_custom: 'meta-123',
-          cpm_trans_id: 'TX-OLD',
+          code: 100,
+          status: 'SUCCESS',
+          merchant_transaction_id: 'MY-ORDER-ID-08082116',
+          transaction_id: '3de579e7ec43451a9463d45d21a4cf48',
+          user: {
+            name: 'Doe John',
+            email: 'john.doe@gmail.com',
+            phone_number: '+2250707000000',
+          },
         },
       }))
 
       expect(fn).toHaveBeenCalledWith(expect.objectContaining({
-        amount: 3000,
-        currency: 'GNF',
-        paymentMethod: 'MTN_GN',
-        description: 'Old format',
-        metadata: 'meta-123',
-        transactionId: 'TX-OLD',
+        status: 'ACCEPTED',
+        rawStatus: 'SUCCESS',
+        apiCode: 100,
+        transactionId: '3de579e7ec43451a9463d45d21a4cf48',
       }))
+    })
+
+    it('uses official API code when status is absent', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      const { checkout } = createCheckout({ onPaymentFailed: fn })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: {
+          code: 2010,
+          transaction_id: 'TX-FAILED-BY-CODE',
+        },
+      }))
+
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'REFUSED',
+        apiCode: 2010,
+        transactionId: 'TX-FAILED-BY-CODE',
+      }))
+    })
+
+    it('uses official code 100 as success when no status is present', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      const { checkout } = createCheckout({ onPaymentSuccess: fn })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { code: 100, transaction_id: 'TX-OK' },
+      }))
+
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'ACCEPTED',
+        apiCode: 100,
+        transactionId: 'TX-OK',
+      }))
+    })
+
+    it('uses official code 2005 as failed when no status is present', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      const { checkout } = createCheckout({ onPaymentFailed: fn })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { code: 2005, transaction_id: 'TX-BALANCE' },
+      }))
+
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'REFUSED',
+        apiCode: 2005,
+        transactionId: 'TX-BALANCE',
+      }))
+    })
+
+    it('reads nested details payloads', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      const { checkout } = createCheckout({ onPaymentSuccess: fn })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: {
+          code: 200,
+          status: 'OK',
+          transaction_id: 'TX-NESTED',
+          details: {
+            code: 100,
+            status: 'SUCCESS',
+            message: 'transaction traitée avec succès',
+          },
+        },
+      }))
+
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'ACCEPTED',
+        rawStatus: 'SUCCESS',
+        apiCode: 100,
+        transactionId: 'TX-NESTED',
+      }))
+    })
+
+    it('prefers official details.status over API envelope status', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      const { checkout } = createCheckout({ onPaymentPending: fn })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: {
+          code: 200,
+          status: 'OK',
+          merchant_transaction_id: 'MERCHANT-ID',
+          transaction_id: 'TX-DETAILS',
+          details: {
+            code: 2001,
+            status: 'INITIATED',
+            message: 'Veuillez cliquer sur le lien pour continuer le paiement',
+            must_be_redirected: true,
+          },
+        },
+      }))
+
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'INITIATED',
+        rawStatus: 'INITIATED',
+        transactionId: 'TX-DETAILS',
+      }))
+    })
+
+    it('does not treat API envelope OK as a successful payment', () => {
+      mockWindowOpen()
+      const success = vi.fn()
+      const pending = vi.fn()
+      const { checkout } = createCheckout({ onPaymentSuccess: success, onPaymentPending: pending })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { code: 200, status: 'OK', payment_token: 'token', payment_url: 'https://secure.cinetpay.net/payment/token' },
+      }))
+
+      expect(success).not.toHaveBeenCalled()
+      expect(pending).not.toHaveBeenCalled()
+    })
+
+    it('maps official FAILED and INSUFFICIENT_BALANCE statuses to onPaymentFailed', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      const { checkout } = createCheckout({ onPaymentFailed: fn })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'FAILED', transaction_id: 'TX-FAILED' },
+      }))
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'INSUFFICIENT_BALANCE', transaction_id: 'TX-BALANCE' },
+      }))
+
+      expect(fn).toHaveBeenCalledTimes(2)
+      expect(fn).toHaveBeenNthCalledWith(1, expect.objectContaining({ status: 'REFUSED', rawStatus: 'FAILED' }))
+      expect(fn).toHaveBeenNthCalledWith(2, expect.objectContaining({ status: 'REFUSED', rawStatus: 'INSUFFICIENT_BALANCE' }))
+    })
+
+    it('normalizes lowercase and alias statuses', () => {
+      mockWindowOpen()
+      const success = vi.fn()
+      const failed = vi.fn()
+      const { checkout } = createCheckout({ onPaymentSuccess: success, onPaymentFailed: failed })
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'success', transaction_id: 'TX-SUCCESS' },
+      }))
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'failed', transaction_id: 'TX-FAILED' },
+      }))
+
+      expect(success).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACCEPTED' }))
+      expect(failed).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED' }))
     })
   })
 

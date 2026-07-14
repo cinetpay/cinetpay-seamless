@@ -71,6 +71,38 @@ describe('CinetPaySeamless', () => {
       expect(fn).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED' }))
     })
 
+    it('supports common onPaymentSuccess casing mistakes in vanilla JS', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-alias-ok',
+        onPaymentsuccess: fn,
+      })
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'SUCCESS', transaction_id: 'TX-ALIAS-OK' },
+      }))
+
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACCEPTED' }))
+    })
+
+    it('supports common onPaymentFailed casing mistakes in vanilla JS', () => {
+      mockWindowOpen()
+      const fn = vi.fn()
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-alias-ko',
+        onpaymentfailed: fn,
+      })
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'FAILED', transaction_id: 'TX-ALIAS-KO' },
+      }))
+
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED' }))
+    })
+
     it('calls onPaymentPending on PENDING', () => {
       mockWindowOpen()
       const fn = vi.fn()

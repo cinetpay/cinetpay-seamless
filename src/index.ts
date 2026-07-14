@@ -128,8 +128,14 @@ export const CinetPaySeamless = {
       logger,
       emitter: this._emitter,
       onReady: config.onReady,
-      onPaymentSuccess: config.onPaymentSuccess,
-      onPaymentFailed: config.onPaymentFailed,
+      onPaymentSuccess: config.onPaymentSuccess
+        ?? config.onPaymentsuccess
+        ?? config.onpaymentSuccess
+        ?? config.onpaymentsuccess,
+      onPaymentFailed: config.onPaymentFailed
+        ?? config.onPaymentfailed
+        ?? config.onpaymentFailed
+        ?? config.onpaymentfailed,
       onPaymentPending: config.onPaymentPending,
       onClose: config.onClose,
       onError: config.onError,

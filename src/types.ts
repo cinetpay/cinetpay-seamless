@@ -22,8 +22,38 @@ export interface SeamlessConfig {
   onReady?: () => void
   /** Callback : paiement accepté (statut ACCEPTED) */
   onPaymentSuccess?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentSuccess`. Conservé pour les intégrations vanilla JS
+   * qui ont utilisé une casse incorrecte.
+   */
+  onPaymentsuccess?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentSuccess`. Conservé pour les intégrations vanilla JS
+   * qui ont utilisé une casse incorrecte.
+   */
+  onpaymentSuccess?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentSuccess`. Conservé pour les intégrations vanilla JS
+   * qui ont utilisé une casse incorrecte.
+   */
+  onpaymentsuccess?: (data: PaymentResponse) => void
   /** Callback : paiement refusé (statut REFUSED) */
   onPaymentFailed?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentFailed`. Conservé pour les intégrations vanilla JS
+   * qui ont utilisé une casse incorrecte.
+   */
+  onPaymentfailed?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentFailed`. Conservé pour les intégrations vanilla JS
+   * qui ont utilisé une casse incorrecte.
+   */
+  onpaymentFailed?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentFailed`. Conservé pour les intégrations vanilla JS
+   * qui ont utilisé une casse incorrecte.
+   */
+  onpaymentfailed?: (data: PaymentResponse) => void
   /** Callback : paiement en attente (statut PENDING, INITIATED, EXPIRED) */
   onPaymentPending?: (data: PaymentResponse) => void
   /** Callback : popup fermée et overlay retiré */
@@ -38,7 +68,13 @@ export interface SeamlessConfig {
 }
 
 /** Statuts possibles d'un paiement */
-export type PaymentStatus = 'ACCEPTED' | 'REFUSED' | 'PENDING' | 'INITIATED' | 'EXPIRED' | 'UNKNOWN'
+export type PaymentStatus =
+  | 'ACCEPTED'
+  | 'REFUSED'
+  | 'PENDING'
+  | 'INITIATED'
+  | 'EXPIRED'
+  | 'UNKNOWN'
 
 /** Réponse de paiement retournée dans les callbacks */
 export interface PaymentResponse {
@@ -48,6 +84,10 @@ export interface PaymentResponse {
   currency: string
   /** Statut du paiement */
   status: PaymentStatus
+  /** Statut brut reçu de CinetPay, utile si le statut a été normalisé */
+  rawStatus?: string
+  /** Code API CinetPay, si présent */
+  apiCode?: number
   /** Code de l'opérateur (OM, MOMO, etc.) */
   paymentMethod: string
   /** Description du service */

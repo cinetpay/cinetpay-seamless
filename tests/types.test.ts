@@ -57,7 +57,14 @@ describe('PaymentResponse', () => {
 
 describe('PaymentStatus', () => {
   it('supports all statuses', () => {
-    const statuses: PaymentStatus[] = ['ACCEPTED', 'REFUSED', 'PENDING', 'INITIATED', 'EXPIRED', 'UNKNOWN']
+    const statuses: PaymentStatus[] = [
+      'ACCEPTED',
+      'REFUSED',
+      'PENDING',
+      'INITIATED',
+      'EXPIRED',
+      'UNKNOWN',
+    ]
     expect(statuses).toHaveLength(6)
   })
 })
