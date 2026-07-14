@@ -36,7 +36,7 @@ npm install cinetpay-seamless
 ### CDN
 
 ```html
-<script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless@0.1.2/dist/cinetpay-seamless.umd.cjs"></script>
 ```
 
 ## Démarrage rapide
@@ -68,7 +68,7 @@ CinetPaySeamless.open({
 ```html
 <button id="pay-btn">Payer 5 000 XOF</button>
 
-<script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless@0.1.2/dist/cinetpay-seamless.umd.cjs"></script>
 <script>
   document.getElementById('pay-btn').addEventListener('click', function() {
     // Appeler votre backend pour obtenir le paymentToken
@@ -491,7 +491,7 @@ async function pay() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Paiement</title>
-  <script src="https://unpkg.com/cinetpay-seamless/dist/cinetpay-seamless.umd.cjs"></script>
+  <script src="https://unpkg.com/cinetpay-seamless@0.1.2/dist/cinetpay-seamless.umd.cjs"></script>
 </head>
 <body>
   <form id="payment-form">

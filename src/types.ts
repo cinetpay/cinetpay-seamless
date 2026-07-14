@@ -23,6 +23,10 @@ export interface SeamlessConfig {
   /** Callback : paiement accepté (statut ACCEPTED) */
   onPaymentSuccess?: (data: PaymentResponse) => void
   /**
+   * @deprecated Utilisez `onPaymentSuccess`. Alias pratique pour les intégrations CDN.
+   */
+  onSuccess?: (data: PaymentResponse) => void
+  /**
    * @deprecated Utilisez `onPaymentSuccess`. Conservé pour les intégrations vanilla JS
    * qui ont utilisé une casse incorrecte.
    */
@@ -39,6 +43,18 @@ export interface SeamlessConfig {
   onpaymentsuccess?: (data: PaymentResponse) => void
   /** Callback : paiement refusé (statut REFUSED) */
   onPaymentFailed?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentFailed`. Alias pratique pour les intégrations CDN.
+   */
+  onFailed?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentFailed`. Alias pratique pour les intégrations CDN.
+   */
+  onPaymentFail?: (data: PaymentResponse) => void
+  /**
+   * @deprecated Utilisez `onPaymentFailed`. Alias pratique pour les intégrations CDN.
+   */
+  onPaymentFailure?: (data: PaymentResponse) => void
   /**
    * @deprecated Utilisez `onPaymentFailed`. Conservé pour les intégrations vanilla JS
    * qui ont utilisé une casse incorrecte.

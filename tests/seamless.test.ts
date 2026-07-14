@@ -103,6 +103,62 @@ describe('CinetPaySeamless', () => {
       expect(fn).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED' }))
     })
 
+    it('supports CDN-style success and failure aliases with details payloads', () => {
+      mockWindowOpen()
+      const success = vi.fn()
+      const failed = vi.fn()
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-cdn-alias',
+        onSuccess: success,
+        onPaymentFailure: failed,
+      })
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: {
+          code: 200,
+          status: 'OK',
+          transaction_id: 'TX-CDN-SUCCESS',
+          details: { code: 100, status: 'SUCCESS' },
+        },
+      }))
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: {
+          code: 200,
+          status: 'OK',
+          transaction_id: 'TX-CDN-FAILED',
+          details: { code: 2010, status: 'FAILED' },
+        },
+      }))
+
+      expect(success).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACCEPTED' }))
+      expect(failed).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED' }))
+    })
+
+    it('resolves callback names case-insensitively for script tag users', () => {
+      mockWindowOpen()
+      const success = vi.fn()
+      const failed = vi.fn()
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-case-insens',
+        ONPAYMENTSUCCESS: success,
+        ONPAYMENTFAILED: failed,
+      } as any)
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'SUCCESS', transaction_id: 'TX-UPPER-SUCCESS' },
+      }))
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { status: 'FAILED', transaction_id: 'TX-UPPER-FAILED' },
+      }))
+
+      expect(success).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACCEPTED' }))
+      expect(failed).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED' }))
+    })
+
     it('calls onPaymentPending on PENDING', () => {
       mockWindowOpen()
       const fn = vi.fn()

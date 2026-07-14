@@ -1,6 +1,6 @@
 {
   "name": "cinetpay-seamless",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CinetPay Seamless — inline payment modal for web applications. No redirect, no iframe. Works with any framework.",
   "type": "module",
   "main": "./dist/cinetpay-seamless.umd.cjs",

@@ -19,6 +19,25 @@ export type { EventName, EventMap } from './emitter'
 /** @internal URL de base de la passerelle de paiement sécurisée */
 const SECURE_BASE_URL = 'https://secure.cinetpay.net'
 
+/** Récupère un callback en tolérant la casse pour les intégrations CDN/script tag. */
+function getCallback<T extends Function>(config: SeamlessConfig, names: string[]): T | undefined {
+  const record = config as unknown as Record<string, unknown>
+
+  for (const name of names) {
+    const value = record[name]
+    if (typeof value === 'function') return value as T
+  }
+
+  const lowerNames = new Set(names.map((name) => name.toLowerCase()))
+  for (const [key, value] of Object.entries(record)) {
+    if (lowerNames.has(key.toLowerCase()) && typeof value === 'function') {
+      return value as T
+    }
+  }
+
+  return undefined
+}
+
 /**
  * CinetPay Seamless — paiement inline via popup window.
  *
@@ -127,18 +146,26 @@ export const CinetPaySeamless = {
     this._checkout = new Checkout({
       logger,
       emitter: this._emitter,
-      onReady: config.onReady,
-      onPaymentSuccess: config.onPaymentSuccess
-        ?? config.onPaymentsuccess
-        ?? config.onpaymentSuccess
-        ?? config.onpaymentsuccess,
-      onPaymentFailed: config.onPaymentFailed
-        ?? config.onPaymentfailed
-        ?? config.onpaymentFailed
-        ?? config.onpaymentfailed,
-      onPaymentPending: config.onPaymentPending,
-      onClose: config.onClose,
-      onError: config.onError,
+      onReady: getCallback(config, ['onReady']),
+      onPaymentSuccess: getCallback(config, [
+        'onPaymentSuccess',
+        'onSuccess',
+        'onPaymentsuccess',
+        'onpaymentSuccess',
+        'onpaymentsuccess',
+      ]),
+      onPaymentFailed: getCallback(config, [
+        'onPaymentFailed',
+        'onPaymentFail',
+        'onPaymentFailure',
+        'onFailed',
+        'onPaymentfailed',
+        'onpaymentFailed',
+        'onpaymentfailed',
+      ]),
+      onPaymentPending: getCallback(config, ['onPaymentPending', 'onPending']),
+      onClose: getCallback(config, ['onClose']),
+      onError: getCallback(config, ['onError']),
     })
 
     this._checkout.open(paymentUrl)
