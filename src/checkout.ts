@@ -474,8 +474,10 @@ export class Checkout {
   /** Origines autorisées pour les messages postMessage */
   private static readonly ALLOWED_ORIGINS = [
     'https://secure.cinetpay.net',
+    'https://secure.cinetpay.co',
     'https://secure.cinetpay.com',
     'https://checkout.cinetpay.net',
+    'https://checkout.cinetpay.co',
     'https://checkout.cinetpay.com',
     'https://api.cinetpay.net',
     'https://api.cinetpay.co',

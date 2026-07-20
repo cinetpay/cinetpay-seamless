@@ -36,7 +36,7 @@ npm install cinetpay-seamless
 ### CDN
 
 ```html
-<script src="https://unpkg.com/cinetpay-seamless@0.1.2/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless@0.1.4/dist/cinetpay-seamless.umd.cjs"></script>
 ```
 
 ## Démarrage rapide
@@ -45,7 +45,7 @@ npm install cinetpay-seamless
 import { CinetPaySeamless } from 'cinetpay-seamless'
 
 // 1. Obtenir le paymentToken depuis votre backend
-const { paymentToken } = await fetch('/api/pay', {
+const { paymentToken, paymentUrl } = await fetch('/api/pay', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ amount: 5000, orderId: 'ORDER-001' }),
@@ -54,6 +54,7 @@ const { paymentToken } = await fetch('/api/pay', {
 // 2. Ouvrir la popup
 CinetPaySeamless.open({
   paymentToken,
+  paymentUrl, // recommandé si votre backend renvoie l'URL CinetPay exacte
   onPaymentSuccess: (data) => {
     console.log('Paiement réussi !', data.amount, data.currency)
   },
@@ -68,7 +69,7 @@ CinetPaySeamless.open({
 ```html
 <button id="pay-btn">Payer 5 000 XOF</button>
 
-<script src="https://unpkg.com/cinetpay-seamless@0.1.2/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless@0.1.4/dist/cinetpay-seamless.umd.cjs"></script>
 <script>
   document.getElementById('pay-btn').addEventListener('click', function() {
     // Appeler votre backend pour obtenir le paymentToken
@@ -81,6 +82,7 @@ CinetPaySeamless.open({
     .then(function(data) {
       CinetPaySeamless.open({
         paymentToken: data.paymentToken,
+        paymentUrl: data.paymentUrl,
         onPaymentSuccess: function(result) {
           alert('Merci ! ' + result.amount + ' ' + result.currency)
         },
@@ -152,6 +154,9 @@ Ouvre la popup de paiement CinetPay.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `paymentToken` | `string` | **requis** | Token obtenu via votre backend (`POST /v1/payment`) |
+| `environment` | `'sandbox' \| 'production'` | `'sandbox'` | Environnement utilisé si `paymentUrl` n'est pas fourni |
+| `paymentUrl` | `string` | - | URL complète renvoyée par CinetPay, prioritaire sur `environment` |
+| `checkoutBaseUrl` | `string` | selon `environment` | Host checkout personnalisé |
 | `statusUrl` | `string \| (ctx) => string` | - | Endpoint de votre backend pour vérifier le statut canonique |
 | `checkStatus` | `(ctx) => Promise<object>` | - | Fonction personnalisée de vérification statut |
 | `statusPollInterval` | `number` | `3000` | Intervalle de vérification statut en ms |
@@ -289,7 +294,10 @@ app.post('/api/pay', async (req, res) => {
     channel: 'PUSH',
   }, 'CI')
 
-  res.json({ paymentToken: payment.paymentToken })
+  res.json({
+    paymentToken: payment.paymentToken,
+    paymentUrl: payment.paymentUrl,
+  })
 })
 ```
 
@@ -310,9 +318,9 @@ async function pay(amount: number) {
       phone: '+2250707000000',
     }),
   })
-  const { paymentToken } = await res.json()
+  const { paymentToken, paymentUrl } = await res.json()
 
-  CinetPaySeamless.open({ paymentToken, debug: true })
+  CinetPaySeamless.open({ paymentToken, paymentUrl, debug: true })
 }
 ```
 
@@ -536,7 +544,7 @@ async function pay() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Paiement</title>
-  <script src="https://unpkg.com/cinetpay-seamless@0.1.2/dist/cinetpay-seamless.umd.cjs"></script>
+  <script src="https://unpkg.com/cinetpay-seamless@0.1.4/dist/cinetpay-seamless.umd.cjs"></script>
 </head>
 <body>
   <form id="payment-form">
@@ -637,7 +645,7 @@ CinetPaySeamless.open({ paymentToken: 'abc...', debug: true })
 
 ```
 [CinetPay Seamless] CinetPaySeamless.open() called
-[CinetPay Seamless] Opening popup { paymentUrl: 'https://secure.cinetpay.net/checkout/abc...' }
+[CinetPay Seamless] Opening popup { paymentUrl: 'https://secure.cinetpay.co/checkout/abc...' }
 [CinetPay Seamless] Iframe loaded — checkout ready
 [CinetPay Seamless] Payment response: ACCEPTED { amount: 5000, currency: 'XOF', ... }
 [CinetPay Seamless] Payment accepted
@@ -665,8 +673,8 @@ Commiter le .env dans git                  Ajouter .env dans .gitignore
 
 | Préfixe de clé | Environnement | Usage |
 |---|---|---|
-| `sk_test_...` | Sandbox (`api.cinetpay.net`) | Développement et tests |
-| `sk_live_...` | Production (`api.cinetpay.co`) | Transactions réelles |
+| `sk_test_...` | Sandbox API `api.cinetpay.net`, checkout `secure.cinetpay.net` | Développement et tests |
+| `sk_live_...` | Production API `api.cinetpay.co`, checkout `secure.cinetpay.co` | Transactions réelles |
 
 **Règles importantes :**
 - Ne **jamais** utiliser des clés `sk_live_` en développement

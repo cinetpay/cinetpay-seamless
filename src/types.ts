@@ -17,6 +17,29 @@ export interface SeamlessConfig {
   /** Token de paiement obtenu côté serveur via l'API CinetPay `POST /v1/payment` */
   paymentToken: string
   /**
+   * Environnement CinetPay utilisé pour construire l'URL checkout quand
+   * `paymentUrl` n'est pas fourni.
+   *
+   * @default 'sandbox'
+   */
+  environment?: SeamlessEnvironment
+  /**
+   * URL de paiement complète renvoyée par votre backend après `POST /v1/payment`.
+   * Si elle est fournie, le SDK l'ouvre telle quelle au lieu de reconstruire
+   * l'URL à partir du `paymentToken`.
+   */
+  paymentUrl?: string
+  /**
+   * @deprecated Utilisez `paymentUrl`.
+   */
+  checkoutUrl?: string
+  /**
+   * URL de base checkout personnalisée. Utile si CinetPay fournit un host dédié.
+   * Par défaut: sandbox `https://secure.cinetpay.net`, production
+   * `https://secure.cinetpay.co`.
+   */
+  checkoutBaseUrl?: string
+  /**
    * URL de votre backend pour vérifier le statut canonique de la transaction.
    *
    * Le SDK appelle cette URL en `GET` pendant que la popup est ouverte, puis
@@ -104,6 +127,9 @@ export interface SeamlessConfig {
    */
   debug?: boolean
 }
+
+/** Environnements supportés pour construire l'URL checkout */
+export type SeamlessEnvironment = 'sandbox' | 'production'
 
 /** Contexte passé aux helpers de vérification statut */
 export interface StatusCheckContext {

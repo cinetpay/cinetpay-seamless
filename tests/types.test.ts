@@ -10,6 +10,9 @@ describe('SeamlessConfig', () => {
   it('accepts all optional callbacks', () => {
     const config: SeamlessConfig = {
       paymentToken: 'valid-token-abc123',
+      environment: 'production',
+      paymentUrl: 'https://secure.cinetpay.co/payment/token',
+      checkoutBaseUrl: 'https://secure.cinetpay.co',
       statusUrl: '/api/cinetpay/status?transactionId=TX',
       checkStatus: async () => ({ status: 'SUCCESS' }),
       statusPollInterval: 2000,
@@ -24,6 +27,8 @@ describe('SeamlessConfig', () => {
     }
     expect(config.debug).toBe(true)
     expect(config.lang).toBe('fr')
+    expect(config.environment).toBe('production')
+    expect(config.paymentUrl).toContain('secure.cinetpay.co')
     expect(config.statusUrl).toContain('/api/cinetpay/status')
     expect(config.statusPollInterval).toBe(2000)
   })

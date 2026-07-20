@@ -5,6 +5,7 @@ import type {
   PaymentError,
   PaymentStatus,
   StatusCheckContext,
+  SeamlessEnvironment,
 } from './types'
 import { Logger } from './logger'
 import { EventEmitter, type EventName, type EventMap } from './emitter'
@@ -15,11 +16,15 @@ export type {
   PaymentError,
   PaymentStatus,
   StatusCheckContext,
+  SeamlessEnvironment,
 }
 export type { EventName, EventMap } from './emitter'
 
-/** @internal URL de base de la passerelle de paiement sécurisée */
-const SECURE_BASE_URL = 'https://secure.cinetpay.net'
+/** @internal URLs de base de la passerelle de paiement sécurisée */
+const SECURE_BASE_URLS: Record<SeamlessEnvironment, string> = {
+  sandbox: 'https://secure.cinetpay.net',
+  production: 'https://secure.cinetpay.co',
+}
 
 /** Récupère un callback en tolérant la casse pour les intégrations CDN/script tag. */
 function getCallback<T extends Function>(config: SeamlessConfig, names: string[]): T | undefined {
@@ -85,6 +90,19 @@ function createStatusChecker(config: SeamlessConfig): (() => Promise<unknown>) |
 
     return response.json()
   }
+}
+
+function createPaymentUrl(config: SeamlessConfig): string {
+  const explicitUrl = getOption<string>(config, ['paymentUrl', 'checkoutUrl'])
+  if (explicitUrl) return explicitUrl
+
+  const environment = getOption<SeamlessEnvironment>(config, ['environment', 'env']) ?? 'sandbox'
+  const checkoutBaseUrl =
+    getOption<string>(config, ['checkoutBaseUrl', 'secureBaseUrl']) ??
+    SECURE_BASE_URLS[environment] ??
+    SECURE_BASE_URLS.sandbox
+
+  return `${checkoutBaseUrl.replace(/\/+$/, '')}/checkout/${config.paymentToken}`
 }
 
 /**
@@ -190,7 +208,7 @@ export const CinetPaySeamless = {
       throw new Error('Invalid paymentToken format — expected alphanumeric string (10-128 chars)')
     }
 
-    const paymentUrl = `${SECURE_BASE_URL}/checkout/${config.paymentToken}`
+    const paymentUrl = createPaymentUrl(config)
 
     this._checkout = new Checkout({
       logger,

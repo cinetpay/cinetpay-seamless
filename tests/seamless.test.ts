@@ -40,6 +40,32 @@ describe('CinetPaySeamless', () => {
         expect.any(String),
       )
     })
+
+    it('opens production checkout on secure.cinetpay.co', () => {
+      mockWindowOpen()
+      CinetPaySeamless.open({
+        paymentToken: 'my-production-token-xyz789',
+        environment: 'production',
+      })
+      expect(window.open).toHaveBeenCalledWith(
+        'https://secure.cinetpay.co/checkout/my-production-token-xyz789',
+        'CinetPayCheckout',
+        expect.any(String),
+      )
+    })
+
+    it('opens explicit paymentUrl when provided by backend', () => {
+      mockWindowOpen()
+      CinetPaySeamless.open({
+        paymentToken: 'my-payment-token-xyz789',
+        paymentUrl: 'https://secure.cinetpay.co/payment/url-from-api',
+      })
+      expect(window.open).toHaveBeenCalledWith(
+        'https://secure.cinetpay.co/payment/url-from-api',
+        'CinetPayCheckout',
+        expect.any(String),
+      )
+    })
   })
 
   // ── Callbacks ──

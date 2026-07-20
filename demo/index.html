@@ -60,6 +60,17 @@
       <input type="text" id="paymentToken" placeholder="Token obtenu via votre backend (POST /v1/payment)">
     </div>
     <div class="field">
+      <label>Environnement</label>
+      <select id="environment">
+        <option value="sandbox">Sandbox — secure.cinetpay.net</option>
+        <option value="production">Production — secure.cinetpay.co</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Payment URL (optionnel)</label>
+      <input type="text" id="paymentUrl" placeholder="URL complète renvoyée par POST /v1/payment">
+    </div>
+    <div class="field">
       <label>Status URL (optionnel)</label>
       <input type="text" id="statusUrl" placeholder="/api/cinetpay/status?transactionId=...">
     </div>
@@ -112,8 +123,11 @@
 
       try {
         const statusUrl = document.getElementById('statusUrl').value.trim()
+        const paymentUrl = document.getElementById('paymentUrl').value.trim()
         CinetPaySeamless.open({
           paymentToken: token,
+          environment: document.getElementById('environment').value,
+          ...(paymentUrl ? { paymentUrl } : {}),
           ...(statusUrl ? { statusUrl, statusPollInterval: 3000 } : {}),
           debug: document.getElementById('debugMode').checked,
           onPaymentSuccess: (data) => log('CALLBACK: onPaymentSuccess — ' + data.amount + ' ' + data.currency),
