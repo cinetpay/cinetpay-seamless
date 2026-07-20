@@ -16,6 +16,28 @@
 export interface SeamlessConfig {
   /** Token de paiement obtenu côté serveur via l'API CinetPay `POST /v1/payment` */
   paymentToken: string
+  /**
+   * URL de votre backend pour vérifier le statut canonique de la transaction.
+   *
+   * Le SDK appelle cette URL en `GET` pendant que la popup est ouverte, puis
+   * normalise la réponse (`SUCCESS`, `FAILED`, etc.) pour déclencher les events.
+   * Ne mettez jamais les clés API CinetPay côté frontend.
+   *
+   * @example `/api/cinetpay/status?transactionId=ORDER-123`
+   */
+  statusUrl?: string | ((context: StatusCheckContext) => string)
+  /**
+   * Fonction personnalisée de vérification statut côté frontend.
+   * Elle doit appeler votre backend, pas directement l'API CinetPay avec des clés.
+   */
+  checkStatus?: (context: StatusCheckContext) => Promise<unknown>
+  /**
+   * Intervalle de vérification statut en millisecondes quand `statusUrl` ou
+   * `checkStatus` est fourni.
+   *
+   * @default 3000
+   */
+  statusPollInterval?: number
   /** Langue de l'interface : fr ou en */
   lang?: 'fr' | 'en'
   /** Callback : popup ouverte, passerelle de paiement prête */
@@ -81,6 +103,12 @@ export interface SeamlessConfig {
    * @default false
    */
   debug?: boolean
+}
+
+/** Contexte passé aux helpers de vérification statut */
+export interface StatusCheckContext {
+  /** Token de paiement utilisé pour ouvrir le checkout */
+  paymentToken: string
 }
 
 /** Statuts possibles d'un paiement */

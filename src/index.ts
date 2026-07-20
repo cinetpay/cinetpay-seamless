@@ -4,6 +4,7 @@ import type {
   PaymentResponse,
   PaymentError,
   PaymentStatus,
+  StatusCheckContext,
 } from './types'
 import { Logger } from './logger'
 import { EventEmitter, type EventName, type EventMap } from './emitter'
@@ -13,6 +14,7 @@ export type {
   PaymentResponse,
   PaymentError,
   PaymentStatus,
+  StatusCheckContext,
 }
 export type { EventName, EventMap } from './emitter'
 
@@ -36,6 +38,53 @@ function getCallback<T extends Function>(config: SeamlessConfig, names: string[]
   }
 
   return undefined
+}
+
+/** Récupère une option en tolérant la casse pour les intégrations CDN/script tag. */
+function getOption<T>(config: SeamlessConfig, names: string[]): T | undefined {
+  const record = config as unknown as Record<string, unknown>
+
+  for (const name of names) {
+    if (record[name] !== undefined) return record[name] as T
+  }
+
+  const lowerNames = new Set(names.map((name) => name.toLowerCase()))
+  for (const [key, value] of Object.entries(record)) {
+    if (lowerNames.has(key.toLowerCase())) return value as T
+  }
+
+  return undefined
+}
+
+function createStatusChecker(config: SeamlessConfig): (() => Promise<unknown>) | undefined {
+  const context: StatusCheckContext = { paymentToken: config.paymentToken }
+  const checkStatus = getCallback<(context: StatusCheckContext) => Promise<unknown>>(config, [
+    'checkStatus',
+    'checkPaymentStatus',
+    'checkTransactionStatus',
+  ])
+
+  if (checkStatus) {
+    return () => checkStatus(context)
+  }
+
+  const statusUrl = getOption<SeamlessConfig['statusUrl']>(config, ['statusUrl', 'statusURL'])
+  if (!statusUrl) return undefined
+
+  return async () => {
+    const url = typeof statusUrl === 'function' ? statusUrl(context) : statusUrl
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Status check failed with HTTP ${response.status}`)
+    }
+
+    return response.json()
+  }
 }
 
 /**
@@ -146,6 +195,8 @@ export const CinetPaySeamless = {
     this._checkout = new Checkout({
       logger,
       emitter: this._emitter,
+      statusChecker: createStatusChecker(config),
+      statusPollInterval: getOption<number>(config, ['statusPollInterval', 'statusCheckInterval']),
       onReady: getCallback(config, ['onReady']),
       onPaymentSuccess: getCallback(config, [
         'onPaymentSuccess',

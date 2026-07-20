@@ -616,35 +616,46 @@ describe('Checkout', () => {
 
     it('maps official FAILED and INSUFFICIENT_BALANCE statuses to onPaymentFailed', () => {
       mockWindowOpen()
-      const fn = vi.fn()
-      const { checkout } = createCheckout({ onPaymentFailed: fn })
-      checkout.open('https://secure.cinetpay.net/checkout/token')
+      const failed = vi.fn()
+      const { checkout: checkout1 } = createCheckout({ onPaymentFailed: failed })
+      checkout1.open('https://secure.cinetpay.net/checkout/token1')
 
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: { status: 'FAILED', transaction_id: 'TX-FAILED' },
       }))
+
+      const insufficientBalance = vi.fn()
+      const { checkout: checkout2 } = createCheckout({ onPaymentFailed: insufficientBalance })
+      checkout2.open('https://secure.cinetpay.net/checkout/token2')
+
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: { status: 'INSUFFICIENT_BALANCE', transaction_id: 'TX-BALANCE' },
       }))
 
-      expect(fn).toHaveBeenCalledTimes(2)
-      expect(fn).toHaveBeenNthCalledWith(1, expect.objectContaining({ status: 'REFUSED', rawStatus: 'FAILED' }))
-      expect(fn).toHaveBeenNthCalledWith(2, expect.objectContaining({ status: 'REFUSED', rawStatus: 'INSUFFICIENT_BALANCE' }))
+      expect(failed).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED', rawStatus: 'FAILED' }))
+      expect(insufficientBalance).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'REFUSED',
+        rawStatus: 'INSUFFICIENT_BALANCE',
+      }))
     })
 
     it('normalizes lowercase and alias statuses', () => {
       mockWindowOpen()
       const success = vi.fn()
-      const failed = vi.fn()
-      const { checkout } = createCheckout({ onPaymentSuccess: success, onPaymentFailed: failed })
-      checkout.open('https://secure.cinetpay.net/checkout/token')
+      const { checkout: checkout1 } = createCheckout({ onPaymentSuccess: success })
+      checkout1.open('https://secure.cinetpay.net/checkout/token1')
 
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: { status: 'success', transaction_id: 'TX-SUCCESS' },
       }))
+
+      const failed = vi.fn()
+      const { checkout: checkout2 } = createCheckout({ onPaymentFailed: failed })
+      checkout2.open('https://secure.cinetpay.net/checkout/token2')
+
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: { status: 'failed', transaction_id: 'TX-FAILED' },
@@ -652,6 +663,83 @@ describe('Checkout', () => {
 
       expect(success).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACCEPTED' }))
       expect(failed).toHaveBeenCalledWith(expect.objectContaining({ status: 'REFUSED' }))
+    })
+  })
+
+  // ── Status polling fallback ──
+
+  describe('Status polling fallback', () => {
+    it('dispatches success from statusChecker when CinetPay does not postMessage', async () => {
+      vi.useFakeTimers()
+      mockWindowOpen()
+      const onPaymentSuccess = vi.fn()
+      const onClose = vi.fn()
+      const statusChecker = vi.fn().mockResolvedValue({
+        code: 100,
+        status: 'SUCCESS',
+        transaction_id: 'TX-STATUS-SUCCESS',
+      })
+      const { checkout } = createCheckout({ onPaymentSuccess, onClose, statusChecker })
+
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+      await vi.runOnlyPendingTimersAsync()
+
+      expect(statusChecker).toHaveBeenCalled()
+      expect(onPaymentSuccess).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'ACCEPTED',
+        rawStatus: 'SUCCESS',
+        apiCode: 100,
+        transactionId: 'TX-STATUS-SUCCESS',
+      }))
+
+      vi.advanceTimersByTime(500)
+      expect(onClose).toHaveBeenCalledWith({ status: 'ACCEPTED' })
+      vi.useRealTimers()
+    })
+
+    it('checks status one last time when popup closes', async () => {
+      vi.useFakeTimers()
+      const mockPopup = mockWindowOpen()
+      const onPaymentPending = vi.fn()
+      const onPaymentSuccess = vi.fn()
+      const statusChecker = vi.fn()
+        .mockResolvedValueOnce({ code: 2001, status: 'INITIATED', transaction_id: 'TX-CLOSE' })
+        .mockResolvedValueOnce({ code: 100, status: 'SUCCESS', transaction_id: 'TX-CLOSE' })
+      const { checkout } = createCheckout({ onPaymentPending, onPaymentSuccess, statusChecker })
+
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+      await vi.runOnlyPendingTimersAsync()
+      expect(onPaymentPending).toHaveBeenCalledWith(expect.objectContaining({ status: 'INITIATED' }))
+
+      mockPopup.closed = true
+      await vi.advanceTimersByTimeAsync(1000)
+
+      expect(statusChecker).toHaveBeenCalledTimes(2)
+      expect(onPaymentSuccess).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACCEPTED' }))
+      vi.useRealTimers()
+    })
+
+    it('does not duplicate final callbacks between statusChecker and postMessage', async () => {
+      vi.useFakeTimers()
+      mockWindowOpen()
+      const onPaymentSuccess = vi.fn()
+      const statusChecker = vi.fn().mockResolvedValue({
+        code: 100,
+        status: 'SUCCESS',
+        transaction_id: 'TX-DEDUP',
+      })
+      const { checkout } = createCheckout({ onPaymentSuccess, statusChecker })
+
+      checkout.open('https://secure.cinetpay.net/checkout/token')
+      await vi.runOnlyPendingTimersAsync()
+
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: 'https://secure.cinetpay.net',
+        data: { code: 100, status: 'SUCCESS', transaction_id: 'TX-DEDUP' },
+      }))
+
+      expect(onPaymentSuccess).toHaveBeenCalledOnce()
+      vi.useRealTimers()
     })
   })
 

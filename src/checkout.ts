@@ -3,6 +3,8 @@ import type { PaymentResponse, PaymentError, PaymentStatus } from './types'
 import { Logger } from './logger'
 import { EventEmitter } from './emitter'
 
+type StatusChecker = () => Promise<unknown>
+
 /** @internal Options du constructeur Checkout */
 export interface CheckoutOptions {
   onReady?: () => void
@@ -11,12 +13,18 @@ export interface CheckoutOptions {
   onPaymentPending?: (data: PaymentResponse) => void
   onClose?: (data: { status: string }) => void
   onError?: (error: PaymentError) => void
+  statusChecker?: StatusChecker
+  statusPollInterval?: number
   logger: Logger
   emitter: EventEmitter
 }
 
 /** @internal Intervalle de polling pour vérifier si la popup est fermée */
 const POPUP_POLL_INTERVAL = 500
+/** @internal Intervalle par défaut pour vérifier le statut via le backend marchand */
+const STATUS_POLL_INTERVAL = 3000
+/** @internal Évite un polling trop agressif depuis le navigateur */
+const MIN_STATUS_POLL_INTERVAL = 1000
 
 /**
  * Gère le checkout CinetPay via une popup window + overlay.
@@ -34,9 +42,14 @@ export class Checkout {
   private overlay: HTMLDivElement | null = null
   private popup: Window | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
+  private statusTimer: ReturnType<typeof setInterval> | null = null
   private closeTimer: ReturnType<typeof setTimeout> | null = null
   private messageHandler: ((event: MessageEvent) => void) | null = null
   private lastStatus = 'UNKNOWN'
+  private lastDispatchKey = ''
+  private finalStatusDispatched = false
+  private statusCheckInFlight = false
+  private isClosing = false
   private previousBodyOverflow = ''
 
   private onReadyCallback?: () => void
@@ -45,6 +58,8 @@ export class Checkout {
   private onPaymentPendingCallback?: (data: PaymentResponse) => void
   private onCloseCallback?: (data: { status: string }) => void
   private onErrorCallback?: (error: PaymentError) => void
+  private statusChecker?: StatusChecker
+  private statusPollInterval: number
   private logger: Logger
   private emitter: EventEmitter
 
@@ -57,6 +72,11 @@ export class Checkout {
     this.onPaymentPendingCallback = options.onPaymentPending
     this.onCloseCallback = options.onClose
     this.onErrorCallback = options.onError
+    this.statusChecker = options.statusChecker
+    this.statusPollInterval = Math.max(
+      MIN_STATUS_POLL_INTERVAL,
+      options.statusPollInterval ?? STATUS_POLL_INTERVAL,
+    )
   }
 
   /**
@@ -73,6 +93,7 @@ export class Checkout {
 
     this.listenForMessages()
     this.startPolling()
+    this.startStatusPolling()
 
     requestAnimationFrame(() => {
       this.overlay?.classList.add('cp-visible')
@@ -86,9 +107,24 @@ export class Checkout {
    * Ferme la popup et l'overlay.
    */
   close(): void {
-    if (this.closeTimer) return
+    if (this.closeTimer || this.isClosing) return
 
+    if (!this.statusChecker || this.finalStatusDispatched) {
+      this.finishClose()
+      return
+    }
+
+    this.isClosing = true
+
+    void this.checkStatus('close').finally(() => {
+      this.finishClose()
+    })
+  }
+
+  private finishClose(): void {
+    if (this.closeTimer) return
     this.stopPolling()
+    this.stopStatusPolling()
 
     if (this.messageHandler) {
       window.removeEventListener('message', this.messageHandler)
@@ -107,6 +143,7 @@ export class Checkout {
       this.closeTimer = setTimeout(() => {
         overlay.remove()
         this.closeTimer = null
+        this.isClosing = false
 
         if (!document.querySelector('.cp-seamless-overlay')) {
           document.body.style.overflow = this.previousBodyOverflow
@@ -116,6 +153,8 @@ export class Checkout {
         this.emitter.emit('close', { status: this.lastStatus })
         this.onCloseCallback?.({ status: this.lastStatus })
       }, 300)
+    } else {
+      this.isClosing = false
     }
   }
 
@@ -213,6 +252,10 @@ export class Checkout {
     return 'UNKNOWN'
   }
 
+  private static isFinalStatus(status: PaymentStatus): boolean {
+    return status === 'ACCEPTED' || status === 'REFUSED'
+  }
+
   private static buildPaymentResponse(data: Record<string, unknown>): PaymentResponse {
     const rawStatus = Checkout.asString(Checkout.findValue(data, [
       'status',
@@ -240,7 +283,18 @@ export class Checkout {
 
   /** Dispatche la réponse vers le bon callback selon le statut. */
   private dispatchResponse(response: PaymentResponse): void {
+    const dispatchKey = `${response.status}:${response.rawStatus ?? ''}:${response.apiCode ?? ''}`
+    const isFinalStatus = Checkout.isFinalStatus(response.status)
+
+    if (isFinalStatus && this.finalStatusDispatched) return
+    if (dispatchKey === this.lastDispatchKey) return
+
+    this.lastDispatchKey = dispatchKey
     this.lastStatus = response.status
+    if (isFinalStatus) {
+      this.finalStatusDispatched = true
+      this.stopStatusPolling()
+    }
 
     this.logger.debug(`Payment response: ${response.status}`, {
       amount: response.amount,
@@ -372,6 +426,48 @@ export class Checkout {
     if (this.pollTimer) {
       clearInterval(this.pollTimer)
       this.pollTimer = null
+    }
+  }
+
+  private startStatusPolling(): void {
+    if (!this.statusChecker) return
+
+    void this.checkStatus('open')
+
+    this.statusTimer = setInterval(() => {
+      void this.checkStatus('interval')
+    }, this.statusPollInterval)
+  }
+
+  private stopStatusPolling(): void {
+    if (this.statusTimer) {
+      clearInterval(this.statusTimer)
+      this.statusTimer = null
+    }
+  }
+
+  private async checkStatus(reason: string): Promise<void> {
+    if (!this.statusChecker || this.statusCheckInFlight || this.finalStatusDispatched) return
+
+    this.statusCheckInFlight = true
+    try {
+      this.logger.debug('Checking payment status', { reason })
+      const data = await this.statusChecker()
+      if (!Checkout.isRecord(data)) return
+
+      const response = Checkout.buildPaymentResponse(data)
+      const rawStatus = response.rawStatus?.trim().toUpperCase()
+      if (response.status !== 'UNKNOWN' || (rawStatus && rawStatus !== 'OK')) {
+        this.dispatchResponse(response)
+      }
+
+      if (Checkout.isFinalStatus(response.status)) {
+        this.finishClose()
+      }
+    } catch (error) {
+      this.logger.warn('Payment status check failed', error)
+    } finally {
+      this.statusCheckInFlight = false
     }
   }
 

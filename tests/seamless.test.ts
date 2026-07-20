@@ -106,11 +106,9 @@ describe('CinetPaySeamless', () => {
     it('supports CDN-style success and failure aliases with details payloads', () => {
       mockWindowOpen()
       const success = vi.fn()
-      const failed = vi.fn()
       CinetPaySeamless.open({
-        paymentToken: 'valid-test-token-cdn-alias',
+        paymentToken: 'valid-test-token-cdn-ok',
         onSuccess: success,
-        onPaymentFailure: failed,
       })
 
       window.dispatchEvent(new MessageEvent('message', {
@@ -122,6 +120,13 @@ describe('CinetPaySeamless', () => {
           details: { code: 100, status: 'SUCCESS' },
         },
       }))
+
+      const failed = vi.fn()
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-cdn-ko',
+        onPaymentFailure: failed,
+      })
+
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: {
@@ -139,17 +144,22 @@ describe('CinetPaySeamless', () => {
     it('resolves callback names case-insensitively for script tag users', () => {
       mockWindowOpen()
       const success = vi.fn()
-      const failed = vi.fn()
       CinetPaySeamless.open({
-        paymentToken: 'valid-test-token-case-insens',
+        paymentToken: 'valid-test-token-case-ok',
         ONPAYMENTSUCCESS: success,
-        ONPAYMENTFAILED: failed,
       } as any)
 
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: { status: 'SUCCESS', transaction_id: 'TX-UPPER-SUCCESS' },
       }))
+
+      const failed = vi.fn()
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-case-ko',
+        ONPAYMENTFAILED: failed,
+      } as any)
+
       window.dispatchEvent(new MessageEvent('message', {
         origin: 'https://secure.cinetpay.net',
         data: { status: 'FAILED', transaction_id: 'TX-UPPER-FAILED' },
@@ -170,6 +180,42 @@ describe('CinetPaySeamless', () => {
       }))
 
       expect(fn).toHaveBeenCalledWith(expect.objectContaining({ status: 'PENDING' }))
+    })
+
+    it('calls onPaymentSuccess from statusUrl fallback', async () => {
+      vi.useFakeTimers()
+      mockWindowOpen()
+      const fn = vi.fn()
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          code: 100,
+          status: 'SUCCESS',
+          transaction_id: 'TX-STATUS-URL',
+        }),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      CinetPaySeamless.open({
+        paymentToken: 'valid-test-token-status-url',
+        statusUrl: '/api/cinetpay/status?transactionId=TX-STATUS-URL',
+        onPaymentSuccess: fn,
+      })
+
+      await vi.runOnlyPendingTimersAsync()
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/cinetpay/status?transactionId=TX-STATUS-URL',
+        expect.objectContaining({
+          method: 'GET',
+          credentials: 'same-origin',
+        }),
+      )
+      expect(fn).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'ACCEPTED',
+        transactionId: 'TX-STATUS-URL',
+      }))
+      vi.useRealTimers()
     })
 
     it('calls onError when popup is blocked', () => {

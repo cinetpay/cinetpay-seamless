@@ -152,6 +152,9 @@ Ouvre la popup de paiement CinetPay.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `paymentToken` | `string` | **requis** | Token obtenu via votre backend (`POST /v1/payment`) |
+| `statusUrl` | `string \| (ctx) => string` | - | Endpoint de votre backend pour vérifier le statut canonique |
+| `checkStatus` | `(ctx) => Promise<object>` | - | Fonction personnalisée de vérification statut |
+| `statusPollInterval` | `number` | `3000` | Intervalle de vérification statut en ms |
 | `debug` | `boolean` | `false` | Logs console `[CinetPay Seamless]` |
 | `onReady` | `() => void` | - | Iframe chargée |
 | `onPaymentSuccess` | `(data) => void` | - | Paiement accepté |
@@ -190,6 +193,8 @@ Ferme la popup et l'overlay.
   amount: number
   currency: string
   status: 'ACCEPTED' | 'REFUSED' | 'PENDING' | 'INITIATED' | 'EXPIRED' | 'UNKNOWN'
+  rawStatus?: string
+  apiCode?: number
   paymentMethod: string
   description: string
   transactionId: string
@@ -198,6 +203,46 @@ Ferme la popup et l'overlay.
   paymentDate?: string
 }
 ```
+
+### Vérification statut recommandée
+
+Le checkout CinetPay peut finaliser le paiement sans envoyer de `postMessage`
+au parent navigateur. Pour fiabiliser `onPaymentSuccess` et `onPaymentFailed`,
+fournissez un endpoint backend qui vérifie le statut canonique auprès de CinetPay.
+
+```typescript
+CinetPaySeamless.open({
+  paymentToken,
+  statusUrl: `/api/cinetpay/status?transactionId=${merchantTransactionId}`,
+  statusPollInterval: 3000,
+  onPaymentSuccess: (data) => {
+    console.log('Paiement accepté', data.transactionId)
+  },
+  onPaymentFailed: (data) => {
+    console.log('Paiement refusé', data.rawStatus)
+  },
+})
+```
+
+Votre endpoint backend doit appeler `GET /v1/payment/{merchant_transaction_id}`
+avec vos clés CinetPay, puis renvoyer la réponse JSON au frontend :
+
+```json
+{
+  "code": 100,
+  "status": "SUCCESS",
+  "merchant_transaction_id": "ORDER-123",
+  "transaction_id": "27ba5590f3ae4c6f9585ae1e4f5265dd"
+}
+```
+
+Le SDK normalise automatiquement :
+
+| Statut CinetPay | Event Seamless |
+|---|---|
+| `SUCCESS` / code `100` | `payment.success` |
+| `FAILED` / `INSUFFICIENT_BALANCE` / code `2010` / `2005` | `payment.failed` |
+| `INITIATED` / `PENDING` / `EXPIRED` | `payment.pending` |
 
 ## Exemples d'intégration
 
@@ -639,12 +684,15 @@ flowchart LR
     B -->|"paymentToken"| F
     F -->|"popup"| D["CinetPay Checkout"]
     D -->|"webhook"| B
-    D -->|"postMessage"| F
+    D -->|"postMessage si disponible"| F
+    F -->|"GET /api/cinetpay/status"| B
+    B -->|"GET /v1/payment/{id}"| C
 ```
 
 ### Autres protections
 
 - **postMessage** : whitelist stricte des domaines CinetPay (bloque les domaines lookalike)
+- **statusUrl recommandé** : vérification canonique via votre backend si `postMessage` final absent
 - **paymentToken validé** : regex `[a-zA-Z0-9_-]{10,128}` avant injection dans l'URL
 - **Popup bloquée** : détection et callback `onError` avec code `POPUP_BLOCKED`
 - **Zero dépendance** runtime — aucun risque supply chain

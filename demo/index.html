@@ -59,6 +59,10 @@
       <label>Payment Token</label>
       <input type="text" id="paymentToken" placeholder="Token obtenu via votre backend (POST /v1/payment)">
     </div>
+    <div class="field">
+      <label>Status URL (optionnel)</label>
+      <input type="text" id="statusUrl" placeholder="/api/cinetpay/status?transactionId=...">
+    </div>
     <button class="pay-btn" id="btn-pay">Ouvrir le paiement</button>
 
     <div class="options">
@@ -107,8 +111,10 @@
       log('Opening popup with token...')
 
       try {
+        const statusUrl = document.getElementById('statusUrl').value.trim()
         CinetPaySeamless.open({
           paymentToken: token,
+          ...(statusUrl ? { statusUrl, statusPollInterval: 3000 } : {}),
           debug: document.getElementById('debugMode').checked,
           onPaymentSuccess: (data) => log('CALLBACK: onPaymentSuccess — ' + data.amount + ' ' + data.currency),
           onPaymentFailed: (data) => log('CALLBACK: onPaymentFailed — ' + data.transactionId),
