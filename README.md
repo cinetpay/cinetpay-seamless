@@ -36,7 +36,7 @@ npm install cinetpay-seamless
 ### CDN
 
 ```html
-<script src="https://unpkg.com/cinetpay-seamless@0.1.4/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless@0.1.5/dist/cinetpay-seamless.umd.cjs"></script>
 ```
 
 ## Démarrage rapide
@@ -44,7 +44,7 @@ npm install cinetpay-seamless
 ```typescript
 import { CinetPaySeamless } from 'cinetpay-seamless'
 
-// 1. Obtenir le paymentToken depuis votre backend
+// 1. Obtenir le paymentToken et, idéalement, paymentUrl depuis votre backend
 const { paymentToken, paymentUrl } = await fetch('/api/pay', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -54,7 +54,7 @@ const { paymentToken, paymentUrl } = await fetch('/api/pay', {
 // 2. Ouvrir la popup
 CinetPaySeamless.open({
   paymentToken,
-  paymentUrl, // recommandé si votre backend renvoie l'URL CinetPay exacte
+  paymentUrl, // recommandé en production: URL CinetPay exacte renvoyée par l'API
   onPaymentSuccess: (data) => {
     console.log('Paiement réussi !', data.amount, data.currency)
   },
@@ -69,7 +69,7 @@ CinetPaySeamless.open({
 ```html
 <button id="pay-btn">Payer 5 000 XOF</button>
 
-<script src="https://unpkg.com/cinetpay-seamless@0.1.4/dist/cinetpay-seamless.umd.cjs"></script>
+<script src="https://unpkg.com/cinetpay-seamless@0.1.5/dist/cinetpay-seamless.umd.cjs"></script>
 <script>
   document.getElementById('pay-btn').addEventListener('click', function() {
     // Appeler votre backend pour obtenir le paymentToken
@@ -167,6 +167,39 @@ Ouvre la popup de paiement CinetPay.
 | `onPaymentPending` | `(data) => void` | - | En attente (PENDING, INITIATED, EXPIRED) |
 | `onClose` | `({ status }) => void` | - | Modal fermé |
 | `onError` | `(error) => void` | - | Erreur technique |
+
+### Éviter les 404 en production
+
+En production, privilégiez toujours l'URL complète renvoyée par CinetPay dans la
+réponse de `POST /v1/payment` (`payment_url`). Ne reconstruisez pas vous-même une
+URL checkout si cette URL est disponible.
+
+```typescript
+// Backend: renvoyer les deux champs utiles au frontend
+res.json({
+  paymentToken: payment.paymentToken ?? payment.payment_token,
+  paymentUrl: payment.paymentUrl ?? payment.payment_url,
+})
+
+// Frontend: ouvrir l'URL exacte CinetPay
+CinetPaySeamless.open({
+  paymentToken,
+  paymentUrl,
+  environment: 'production',
+})
+```
+
+Le SDK accepte aussi les noms bruts CinetPay côté JavaScript :
+
+```javascript
+CinetPaySeamless.open({
+  payment_token: data.payment_token,
+  payment_url: data.payment_url,
+})
+```
+
+Si `paymentUrl` / `payment_url` est fourni, il est prioritaire et le SDK ne
+reconstruit pas `https://secure.cinetpay.co/checkout/{paymentToken}`.
 
 ### `CinetPaySeamless.on(event, handler)`
 
@@ -295,8 +328,8 @@ app.post('/api/pay', async (req, res) => {
   }, 'CI')
 
   res.json({
-    paymentToken: payment.paymentToken,
-    paymentUrl: payment.paymentUrl,
+    paymentToken: payment.paymentToken ?? payment.payment_token,
+    paymentUrl: payment.paymentUrl ?? payment.payment_url,
   })
 })
 ```
@@ -544,7 +577,7 @@ async function pay() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Paiement</title>
-  <script src="https://unpkg.com/cinetpay-seamless@0.1.4/dist/cinetpay-seamless.umd.cjs"></script>
+  <script src="https://unpkg.com/cinetpay-seamless@0.1.5/dist/cinetpay-seamless.umd.cjs"></script>
 </head>
 <body>
   <form id="payment-form">
@@ -645,7 +678,7 @@ CinetPaySeamless.open({ paymentToken: 'abc...', debug: true })
 
 ```
 [CinetPay Seamless] CinetPaySeamless.open() called
-[CinetPay Seamless] Opening popup { paymentUrl: 'https://secure.cinetpay.co/checkout/abc...' }
+[CinetPay Seamless] Opening popup { paymentUrl: 'https://secure.cinetpay.co/payment/abc...' }
 [CinetPay Seamless] Iframe loaded — checkout ready
 [CinetPay Seamless] Payment response: ACCEPTED { amount: 5000, currency: 'XOF', ... }
 [CinetPay Seamless] Payment accepted

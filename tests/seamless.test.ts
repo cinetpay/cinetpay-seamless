@@ -66,6 +66,32 @@ describe('CinetPaySeamless', () => {
         expect.any(String),
       )
     })
+
+    it('opens explicit payment_url from raw CinetPay API response without rebuilding checkout URL', () => {
+      mockWindowOpen()
+      CinetPaySeamless.open({
+        payment_token: 'my-payment-token-raw-api',
+        payment_url: 'https://secure.cinetpay.co/payment/raw-url-from-api',
+      } as any)
+      expect(window.open).toHaveBeenCalledWith(
+        'https://secure.cinetpay.co/payment/raw-url-from-api',
+        'CinetPayCheckout',
+        expect.any(String),
+      )
+    })
+
+    it('accepts payment_token alias when only token is available', () => {
+      mockWindowOpen()
+      CinetPaySeamless.open({
+        payment_token: 'my-payment-token-raw-api',
+        environment: 'production',
+      } as any)
+      expect(window.open).toHaveBeenCalledWith(
+        'https://secure.cinetpay.co/checkout/my-payment-token-raw-api',
+        'CinetPayCheckout',
+        expect.any(String),
+      )
+    })
   })
 
   // ── Callbacks ──

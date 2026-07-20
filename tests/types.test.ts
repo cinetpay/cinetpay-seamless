@@ -2,16 +2,23 @@ import { describe, it, expect } from 'vitest'
 import type { SeamlessConfig, PaymentResponse, PaymentError, PaymentStatus } from '../src/types'
 
 describe('SeamlessConfig', () => {
-  it('requires paymentToken', () => {
+  it('accepts paymentToken', () => {
     const config: SeamlessConfig = { paymentToken: 'valid-token-abc123' }
     expect(config.paymentToken).toBe('valid-token-abc123')
+  })
+
+  it('accepts direct paymentUrl without paymentToken', () => {
+    const config: SeamlessConfig = { paymentUrl: 'https://secure.cinetpay.co/payment/token' }
+    expect(config.paymentUrl).toContain('secure.cinetpay.co')
   })
 
   it('accepts all optional callbacks', () => {
     const config: SeamlessConfig = {
       paymentToken: 'valid-token-abc123',
+      payment_token: 'valid-token-raw-api',
       environment: 'production',
       paymentUrl: 'https://secure.cinetpay.co/payment/token',
+      payment_url: 'https://secure.cinetpay.co/payment/raw-token',
       checkoutBaseUrl: 'https://secure.cinetpay.co',
       statusUrl: '/api/cinetpay/status?transactionId=TX',
       checkStatus: async () => ({ status: 'SUCCESS' }),

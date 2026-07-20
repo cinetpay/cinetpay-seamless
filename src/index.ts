@@ -61,8 +61,16 @@ function getOption<T>(config: SeamlessConfig, names: string[]): T | undefined {
   return undefined
 }
 
+function getPaymentToken(config: SeamlessConfig): string | undefined {
+  return getOption<string>(config, ['paymentToken', 'payment_token'])
+}
+
+function getPaymentUrl(config: SeamlessConfig): string | undefined {
+  return getOption<string>(config, ['paymentUrl', 'paymentURL', 'payment_url', 'checkoutUrl', 'checkout_url'])
+}
+
 function createStatusChecker(config: SeamlessConfig): (() => Promise<unknown>) | undefined {
-  const context: StatusCheckContext = { paymentToken: config.paymentToken }
+  const context: StatusCheckContext = { paymentToken: getPaymentToken(config) ?? '' }
   const checkStatus = getCallback<(context: StatusCheckContext) => Promise<unknown>>(config, [
     'checkStatus',
     'checkPaymentStatus',
@@ -93,8 +101,13 @@ function createStatusChecker(config: SeamlessConfig): (() => Promise<unknown>) |
 }
 
 function createPaymentUrl(config: SeamlessConfig): string {
-  const explicitUrl = getOption<string>(config, ['paymentUrl', 'checkoutUrl'])
+  const explicitUrl = getPaymentUrl(config)
   if (explicitUrl) return explicitUrl
+
+  const paymentToken = getPaymentToken(config)
+  if (!paymentToken) {
+    throw new Error('Invalid paymentToken format — expected alphanumeric string (10-128 chars)')
+  }
 
   const environment = getOption<SeamlessEnvironment>(config, ['environment', 'env']) ?? 'sandbox'
   const checkoutBaseUrl =
@@ -102,7 +115,7 @@ function createPaymentUrl(config: SeamlessConfig): string {
     SECURE_BASE_URLS[environment] ??
     SECURE_BASE_URLS.sandbox
 
-  return `${checkoutBaseUrl.replace(/\/+$/, '')}/checkout/${config.paymentToken}`
+  return `${checkoutBaseUrl.replace(/\/+$/, '')}/checkout/${paymentToken}`
 }
 
 /**
@@ -203,8 +216,9 @@ export const CinetPaySeamless = {
     const logger = new Logger(config.debug ?? false)
     logger.debug('CinetPaySeamless.open() called')
 
-    // Validation du paymentToken
-    if (!/^[a-zA-Z0-9_-]{10,128}$/.test(config.paymentToken)) {
+    // Validation du paymentToken quand le SDK doit reconstruire l'URL checkout.
+    const paymentToken = getPaymentToken(config)
+    if (paymentToken && !/^[a-zA-Z0-9_-]{10,128}$/.test(paymentToken)) {
       throw new Error('Invalid paymentToken format — expected alphanumeric string (10-128 chars)')
     }
 

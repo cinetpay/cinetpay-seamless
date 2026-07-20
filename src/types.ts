@@ -15,7 +15,11 @@
  */
 export interface SeamlessConfig {
   /** Token de paiement obtenu côté serveur via l'API CinetPay `POST /v1/payment` */
-  paymentToken: string
+  paymentToken?: string
+  /**
+   * @deprecated Utilisez `paymentToken`. Alias du champ brut CinetPay.
+   */
+  payment_token?: string
   /**
    * Environnement CinetPay utilisé pour construire l'URL checkout quand
    * `paymentUrl` n'est pas fourni.
@@ -29,6 +33,10 @@ export interface SeamlessConfig {
    * l'URL à partir du `paymentToken`.
    */
   paymentUrl?: string
+  /**
+   * @deprecated Utilisez `paymentUrl`. Alias du champ brut CinetPay.
+   */
+  payment_url?: string
   /**
    * @deprecated Utilisez `paymentUrl`.
    */
